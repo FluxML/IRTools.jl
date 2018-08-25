@@ -1,0 +1,6 @@
+authors = ["Mike J Innes <mike.j.innes@gmail.com>"]
+name = "IRTools"
+uuid = "71c1cb0c-a83f-11e8-19ce-a5dd18e12d22"
+version = "0.1.0"
+
+[deps]
