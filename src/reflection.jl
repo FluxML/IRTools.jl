@@ -67,7 +67,7 @@ end
 
 function code_ir(f, T)
   m = typed_meta(Tuple{Typeof(f),T.parameters...})
-  return Core.Compiler.IRCode(m)
+  return IR(m)
 end
 
 function code_irm(ex)

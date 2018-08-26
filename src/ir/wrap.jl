@@ -5,7 +5,8 @@ import Core: Typeof
 import Core.Compiler: CodeInfo, IRCode, CFG, BasicBlock, Argument, ReturnNode,
   NullLineInfo, just_construct_ssa, compact!, NewNode, InferenceState, OptimizationState,
   GotoIfNot, PhiNode, PiNode, StmtRange, IncrementalCompact, insert_node!, insert_node_here!,
-  compact!, finish, DomTree, construct_domtree, dominates, userefs, widenconst, types, verify_ir
+  compact!, finish, DomTree, construct_domtree, dominates, userefs, widenconst, types, verify_ir,
+  ssamap
 
 for T in :[IRCode, IncrementalCompact, UseRef, UseRefIterator, TypesView].args
   @eval begin
@@ -69,21 +70,33 @@ function just_construct_ssa(ci::CodeInfo, code::Vector{Any}, nargs::Int, sp)
   return ir
 end
 
-import ..IRTools: IR, TypedMeta, Meta
+import ..IRTools: IR, Statement, TypedMeta, Meta, block!
 
 function IRCode(meta::TypedMeta)
   opt = OptimizationState(meta.frame)
   ir = just_construct_ssa(meta.code, deepcopy(meta.code.code),
                           Int(meta.method.nargs)-1, opt)
-  # return inline_sparams!(ir, opt.sp)
-  return ir
+  return compact!(ir)
 end
 
 function IRCode(meta::Meta)
   ir = just_construct_ssa(meta.code, deepcopy(meta.code.code),
                           Int(meta.method.nargs)-1, meta.sparams)
-  # return inline_sparams!(ir, meta.sparams)
-  return ir
+  return compact!(ir)
 end
+
+function IR(ir::IRCode)
+  ir2 = IR()
+  defs = Dict()
+  isempty(ir.new_nodes) || error("IRCode must be compacted")
+  for i = 1:length(ir.stmts)
+    findfirst(==(i), ir.cfg.index) == nothing || block!(ir2)
+    x = push!(ir2, Statement(ir.stmts[i], ir.types[i], ir.lines[i]))
+    defs[SSAValue(i)] = x
+  end
+  ssamap(x -> defs[x], ir2)
+end
+
+IR(meta::Union{Meta,TypedMeta}) = IR(IRCode(meta))
 
 end

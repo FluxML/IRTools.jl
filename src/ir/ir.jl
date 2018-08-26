@@ -15,6 +15,9 @@ Statement(x; type = Any, line = 0) =
 Statement(x::Statement; type = x.type, line = x.line) =
   Statement(x.expr, type, line)
 
+Statement(x::Statement, expr; type = x.type, line = x.line) =
+  Statement(expr, type, line)
+
 struct BasicBlock
   stmts::Vector{Statement}
   gotos::Vector{Statement}
