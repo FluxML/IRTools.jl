@@ -12,11 +12,8 @@ end
 Statement(x; type = Any, line = 0) =
   Statement(x, type, line)
 
-Statement(x::Statement; type = x.type, line = x.line) =
+Statement(x::Statement, expr = x.expr; type = x.type, line = x.line) =
   Statement(x.expr, type, line)
-
-Statement(x::Statement, expr; type = x.type, line = x.line) =
-  Statement(expr, type, line)
 
 struct BasicBlock
   stmts::Vector{Statement}
