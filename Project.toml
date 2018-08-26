@@ -1,6 +1,8 @@
-authors = ["Mike J Innes <mike.j.innes@gmail.com>"]
 name = "IRTools"
 uuid = "71c1cb0c-a83f-11e8-19ce-a5dd18e12d22"
+authors = ["Mike J Innes <mike.j.innes@gmail.com>"]
 version = "0.1.0"
 
 [deps]
+InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
+MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
