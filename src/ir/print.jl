@@ -9,5 +9,8 @@ function show(io::IO, ir::IR)
       st = ir.blocks[b].stmts[i]
       println(io, st.expr)
     end
+    for g in ir.blocks[b].gotos
+      println(io, "       ", g.expr)
+    end
   end
 end

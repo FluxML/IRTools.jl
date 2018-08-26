@@ -1,5 +1,7 @@
-using Core.Compiler: Argument, SSAValue
+using Core.Compiler: Argument, SSAValue, PhiNode, GotoNode, GotoIfNot, ReturnNode
 import Base: push!, insert!, getindex, setindex!
+
+iscontrol(x) = x isa Union{GotoNode,GotoIfNot,ReturnNode}
 
 struct Statement
   expr::Any
@@ -14,8 +16,8 @@ Statement(x::Statement; type = x.type, line = x.line) =
   Statement(x.expr, type, line)
 
 struct BasicBlock
-  stmts::Vector{Any}
-  branches::Vector{Pair{SSAValue,Int}}
+  stmts::Vector{Statement}
+  gotos::Vector{Statement}
 end
 
 BasicBlock() = BasicBlock([], [])
@@ -26,6 +28,11 @@ struct IR
 end
 
 IR() = IR([],[BasicBlock()])
+
+function block!(ir::IR)
+  push!(ir.blocks, BasicBlock())
+  return ir
+end
 
 struct Block
   ir::IR
@@ -47,9 +54,15 @@ function getindex(ir::IR, x::SSAValue)
 end
 
 function push!(b::Block, x)
-  push!(b.bb.stmts, Statement(x))
-  push!(b.ir.defs, (b.idx, length(b.bb.stmts)))
-  return SSAValue(length(b.ir.defs))
+  x = Statement(x)
+  if iscontrol(x.expr)
+    push!(b.bb.gotos, x)
+    return
+  else
+    push!(b.bb.stmts, x)
+    push!(b.ir.defs, (b.idx, length(b.bb.stmts)))
+    return SSAValue(length(b.ir.defs))
+  end
 end
 
 push!(ir::IR, x) = push!(block(ir, length(ir.blocks)), x)
