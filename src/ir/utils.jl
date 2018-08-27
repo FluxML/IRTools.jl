@@ -10,4 +10,5 @@ function map(f, ir::IR)
   IR(ir.defs, map.(f, ir.blocks), ir.lines)
 end
 
+# TODO non-mutating ssamap
 ssamap(f, ir::IR) = map(x -> ssamap(f, x), ir)

@@ -25,6 +25,8 @@ PhiNode(x, y) = PhiNode(Any[x...], Any[y...])
 
 CFG(bs) = CFG(bs, map(b -> b.stmts.first, bs[2:end]))
 
+StmtRange(r::UnitRange) = StmtRange(first(r), last(r))
+
 # SSA contruction (forked from Base for untyped code)
 
 import Core.Compiler: normalize, strip_trailing_junk!, compute_basic_blocks,
@@ -106,11 +108,13 @@ function CFG(ir::IR)
   index = [i[1] for i in ranges[2:end]]
   succs = IRTools.successors.(IRTools.blocks(ir))
   preds = [filter(j -> i in succs[j], 1:length(succs)) for i = 1:length(succs)]
+  bs = [BasicBlock(StmtRange(r), ps, ss) for (r, ps, ss) in zip(ranges, preds, succs)]
+  return CFG(bs, index)
 end
 
 function IRCode(ir::IR)
   sts = collect(ir)
-  lines = [st.line for (_, st) in sts]
+  lines = Int32[st.line for (_, st) in sts]
   types = [st.type for (_, st) in sts]
   map = Dict{SSAValue,SSAValue}()
   for (i, (j, _)) in enumerate(sts)
@@ -118,6 +122,8 @@ function IRCode(ir::IR)
     map[j] = SSAValue(i)
   end
   stmts = [ssamap(x -> map[x], st.expr) for (_, st) in sts]
+  flags = [0x00 for _ in stmts]
+  IRCode(stmts, types, lines, flags, CFG(ir), ir.lines, [], [], Core.svec())
 end
 
 end
