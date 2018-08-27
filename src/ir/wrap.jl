@@ -29,6 +29,7 @@ CFG(bs) = CFG(bs, map(b -> b.stmts.first, bs[2:end]))
 
 import Core.Compiler: normalize, strip_trailing_junk!, compute_basic_blocks,
   scan_slot_def_use, LineInfoNode, construct_ssa!, IR_FLAG_INBOUNDS
+using Base.Meta
 
 function just_construct_ssa(ci::CodeInfo, code::Vector{Any}, nargs::Int, sp)
   ci.ssavaluetypes = Any[Any for _ = 1:length(code)]
@@ -86,7 +87,7 @@ function IRCode(meta::Meta)
 end
 
 function IR(ir::IRCode)
-  ir2 = IR()
+  ir2 = IR(ir.linetable)
   defs = Dict()
   isempty(ir.new_nodes) || error("IRCode must be compacted")
   for i = 1:length(ir.stmts)
@@ -98,5 +99,25 @@ function IR(ir::IRCode)
 end
 
 IR(meta::Union{Meta,TypedMeta}) = IR(IRCode(meta))
+
+function CFG(ir::IR)
+  ls = length.(ir.blocks)
+  ranges = [i-l+1:i for (l, i) in zip(ls, cumsum(ls))]
+  index = [i[1] for i in ranges[2:end]]
+  succs = IRTools.successors.(IRTools.blocks(ir))
+  preds = [filter(j -> i in succs[j], 1:length(succs)) for i = 1:length(succs)]
+end
+
+function IRCode(ir::IR)
+  sts = collect(ir)
+  lines = [st.line for (_, st) in sts]
+  types = [st.type for (_, st) in sts]
+  map = Dict{SSAValue,SSAValue}()
+  for (i, (j, _)) in enumerate(sts)
+    j == nothing && continue
+    map[j] = SSAValue(i)
+  end
+  stmts = [ssamap(x -> map[x], st.expr) for (_, st) in sts]
+end
 
 end

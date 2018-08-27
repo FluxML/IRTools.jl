@@ -7,7 +7,7 @@ function map(f, b::BasicBlock)
 end
 
 function map(f, ir::IR)
-  IR(ir.defs, map.(f, ir.blocks))
+  IR(ir.defs, map.(f, ir.blocks), ir.lines)
 end
 
 ssamap(f, ir::IR) = map(x -> ssamap(f, x), ir)

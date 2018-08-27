@@ -1,7 +1,10 @@
-using Core.Compiler: Argument, SSAValue, PhiNode, GotoNode, GotoIfNot, ReturnNode
+using Core.Compiler: Argument, SSAValue, PhiNode, GotoNode, GotoIfNot, ReturnNode, LineInfoNode
 import Base: push!, insert!, getindex, setindex!, iterate, length
 
-iscontrol(x) = x isa Union{GotoNode,GotoIfNot,ReturnNode}
+isgoto(x) = x isa Union{GotoNode,GotoIfNot}
+iscontrol(x) = isgoto(x) || x isa ReturnNode
+label(x::GotoNode) = x.label
+label(x::GotoIfNot) = x.dest
 
 struct Statement
   expr::Any
@@ -13,7 +16,7 @@ Statement(x; type = Any, line = 0) =
   Statement(x, type, line)
 
 Statement(x::Statement, expr = x.expr; type = x.type, line = x.line) =
-  Statement(x.expr, type, line)
+  Statement(expr, type, line)
 
 struct BasicBlock
   stmts::Vector{Statement}
@@ -27,9 +30,11 @@ length(bb::BasicBlock) = length(bb.stmts) + length(bb.gotos)
 struct IR
   defs::Vector{Tuple{Int,Int}}
   blocks::Vector{BasicBlock}
+  lines::Vector{LineInfoNode}
 end
 
-IR() = IR([],[BasicBlock()])
+IR() = IR([],[BasicBlock()],[])
+IR(lines::Vector{LineInfoNode}) = IR([],[BasicBlock()],lines)
 
 length(ir::IR) = sum(length, ir.blocks)
 
@@ -58,6 +63,13 @@ function getindex(ir::IR, x::SSAValue)
 end
 
 length(b::Block) = length(b.bb)
+
+function successors(b::Block)
+  gotos = [st.expr for st in b.bb.gotos]
+  succs = Int[label(x) for x in filter(isgoto, gotos)]
+  all(x -> x isa GotoIfNot, gotos) && push!(succs, b.id+1)
+  return succs
+end
 
 function iterate(b::Block, i = 1)
   i > length(b) && return
