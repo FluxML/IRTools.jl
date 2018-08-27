@@ -11,6 +11,11 @@ struct TypedMeta
   ret
 end
 
+function Base.show(io::IO, meta::TypedMeta)
+  print(io, "Typed metadata for ")
+  print(io, meta.method)
+end
+
 @eval Core.Compiler function typeinf_code2(method::Method, @nospecialize(atypes), sparams::SimpleVector, run_optimizer::Bool, params::Params)
     code = code_for_method(method, atypes, sparams, params.world)
     code === nothing && return (nothing, Any)
@@ -52,6 +57,11 @@ struct Meta
   sparams
 end
 
+function Base.show(io::IO, meta::Meta)
+  print(io, "Metadata for ")
+  print(io, meta.method)
+end
+
 function meta(T; world = worldcounter())
   F = T.parameters[1]
   F isa DataType && (F.name.module === Core.Compiler ||
@@ -78,4 +88,11 @@ end
 
 macro code_ir(ex)
   code_irm(ex)
+end
+
+codeinfo(m::Meta) = m.code
+codeinfo(m::TypedMeta) = m.code
+
+function argnames!(meta, names...)
+  meta.code.slotnames = [names...]
 end

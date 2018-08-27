@@ -1,5 +1,6 @@
 module Wrap
 
+using MacroTools: isexpr, prewalk
 import Core: SSAValue, GotoNode, Compiler
 import Core: Typeof
 import Core.Compiler: CodeInfo, IRCode, CFG, BasicBlock, Argument, ReturnNode,
@@ -31,7 +32,6 @@ StmtRange(r::UnitRange) = StmtRange(first(r), last(r))
 
 import Core.Compiler: normalize, strip_trailing_junk!, compute_basic_blocks,
   scan_slot_def_use, LineInfoNode, construct_ssa!, IR_FLAG_INBOUNDS
-using Base.Meta
 
 function just_construct_ssa(ci::CodeInfo, code::Vector{Any}, nargs::Int, sp)
   ci.ssavaluetypes = Any[Any for _ = 1:length(code)]
@@ -73,6 +73,7 @@ function just_construct_ssa(ci::CodeInfo, code::Vector{Any}, nargs::Int, sp)
   return ir
 end
 
+using ..IRTools
 import ..IRTools: IR, Statement, TypedMeta, Meta, block!
 
 function IRCode(meta::TypedMeta)
@@ -89,7 +90,7 @@ function IRCode(meta::Meta)
 end
 
 function IR(ir::IRCode)
-  ir2 = IR(ir.linetable)
+  ir2 = IR(ir.linetable, ir.argtypes)
   defs = Dict()
   isempty(ir.new_nodes) || error("IRCode must be compacted")
   for i = 1:length(ir.stmts)
@@ -100,7 +101,16 @@ function IR(ir::IRCode)
   ssamap(x -> defs[x], ir2)
 end
 
-IR(meta::Union{Meta,TypedMeta}) = IR(IRCode(meta))
+function inline_sparams(ir::IR, sps)
+  map(ir) do ex
+    prewalk(x -> isexpr(x, :static_parameter) ? sps[x.args[1]] : x, ex)
+  end
+end
+
+function IR(meta::Union{Meta,TypedMeta})
+  ir = IRCode(meta)
+  inline_sparams(IR(ir), ir.spvals)
+end
 
 function CFG(ir::IR)
   ls = length.(ir.blocks)
@@ -115,7 +125,7 @@ end
 function IRCode(ir::IR)
   sts = collect(ir)
   lines = Int32[st.line for (_, st) in sts]
-  types = [st.type for (_, st) in sts]
+  types = Any[st.type for (_, st) in sts]
   map = Dict{SSAValue,SSAValue}()
   for (i, (j, _)) in enumerate(sts)
     j == nothing && continue
@@ -123,7 +133,7 @@ function IRCode(ir::IR)
   end
   stmts = [ssamap(x -> map[x], st.expr) for (_, st) in sts]
   flags = [0x00 for _ in stmts]
-  IRCode(stmts, types, lines, flags, CFG(ir), ir.lines, [], [], Core.svec())
+  IRCode(stmts, types, lines, flags, CFG(ir), ir.lines, ir.args, [], Core.svec())
 end
 
 end

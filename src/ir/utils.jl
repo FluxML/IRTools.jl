@@ -1,5 +1,8 @@
 import Base: map
-import Core.Compiler: ssamap
+import Core.Compiler: ssamap, userefs
+
+xcall(mod::Module, f::Symbol, args...) = Expr(:call, GlobalRef(mod, f), args...)
+xcall(f::Symbol, args...) = xcall(Base, f, args...)
 
 function map(f, b::BasicBlock)
   f′(x) = Statement(x, f(x.expr))
@@ -7,8 +10,21 @@ function map(f, b::BasicBlock)
 end
 
 function map(f, ir::IR)
-  IR(ir.defs, map.(f, ir.blocks), ir.lines)
+  IR(ir.defs, map.(f, ir.blocks), ir.lines, ir.args)
 end
 
-# TODO non-mutating ssamap
+# TODO non-mutating ssamap/argmap
 ssamap(f, ir::IR) = map(x -> ssamap(f, x), ir)
+
+function argmap(f, @nospecialize(stmt))
+    urs = userefs(stmt)
+    for op in urs
+        val = op[]
+        if isa(val, Argument)
+            op[] = f(val)
+        end
+    end
+    return urs[]
+end
+
+argmap(f, ir::IR) = map(x -> argmap(f, x), ir)

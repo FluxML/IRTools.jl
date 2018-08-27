@@ -31,10 +31,11 @@ struct IR
   defs::Vector{Tuple{Int,Int}}
   blocks::Vector{BasicBlock}
   lines::Vector{LineInfoNode}
+  args::Vector{Any}
 end
 
-IR() = IR([],[BasicBlock()],[])
-IR(lines::Vector{LineInfoNode}) = IR([],[BasicBlock()],lines)
+IR() = IR([],[BasicBlock()],[],[])
+IR(lines::Vector{LineInfoNode},args) = IR([],[BasicBlock()],lines,args)
 
 length(ir::IR) = sum(length, ir.blocks)
 
@@ -99,4 +100,25 @@ function push!(b::Block, x)
   end
 end
 
+function insert!(b::Block, idx::Integer, x)
+  insert!(b.bb.stmts, idx, Statement(x))
+  for i = 1:length(b.ir.defs)
+    c, j = b.ir.defs[i]
+    if c == b.id && j >= idx
+      b.ir.defs[i] = (c, j+1)
+    end
+  end
+  push!(b.ir.defs, (b.id, idx))
+  return SSAValue(length(b.ir.defs))
+end
+
+Base.pushfirst!(b::Block, x) = insert!(b, 1, x)
+
 push!(ir::IR, x) = push!(block(ir, length(ir.blocks)), x)
+
+Base.pushfirst!(ir::IR, x) = pushfirst!(block(ir, 1), x)
+
+function insert!(ir::IR, i::SSAValue, x; after = false)
+  b, i = blockidx(ir, i)
+  insert!(b, i+after, x)
+end
