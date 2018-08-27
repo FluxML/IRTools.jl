@@ -1,5 +1,5 @@
 using Core.Compiler: Argument, SSAValue, PhiNode, GotoNode, GotoIfNot, ReturnNode
-import Base: push!, insert!, getindex, setindex!
+import Base: push!, insert!, getindex, setindex!, iterate, length
 
 iscontrol(x) = x isa Union{GotoNode,GotoIfNot,ReturnNode}
 
@@ -22,12 +22,16 @@ end
 
 BasicBlock() = BasicBlock([], [])
 
+length(bb::BasicBlock) = length(bb.stmts) + length(bb.gotos)
+
 struct IR
   defs::Vector{Tuple{Int,Int}}
   blocks::Vector{BasicBlock}
 end
 
 IR() = IR([],[BasicBlock()])
+
+length(ir::IR) = sum(length, ir.blocks)
 
 function block!(ir::IR)
   push!(ir.blocks, BasicBlock())
@@ -36,7 +40,7 @@ end
 
 struct Block
   ir::IR
-  idx::Int
+  id::Int
   bb::BasicBlock
 end
 
@@ -53,6 +57,24 @@ function getindex(ir::IR, x::SSAValue)
   b.bb.stmts[i]
 end
 
+length(b::Block) = length(b.bb)
+
+function iterate(b::Block, i = 1)
+  i > length(b) && return
+  el = i <= length(b.bb.stmts) ? b.bb.stmts[i] : b.bb.gotos[i-length(b.bb.stmts)]
+  def = findfirst(==((b.id,i)), b.ir.defs)
+  def == nothing || (def = SSAValue(def))
+  return ((def, el), i+1)
+end
+
+function iterate(ir::IR, (b, i) = (1,1))
+  b > length(ir.blocks) && return
+  r = iterate(block(ir, b), i)
+  r == nothing && return iterate(ir, (b+1, 1))
+  x, i = r
+  return x, (b, i)
+end
+
 function push!(b::Block, x)
   x = Statement(x)
   if iscontrol(x.expr)
@@ -60,7 +82,7 @@ function push!(b::Block, x)
     return
   else
     push!(b.bb.stmts, x)
-    push!(b.ir.defs, (b.idx, length(b.bb.stmts)))
+    push!(b.ir.defs, (b.id, length(b.bb.stmts)))
     return SSAValue(length(b.ir.defs))
   end
 end
