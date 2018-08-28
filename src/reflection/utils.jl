@@ -49,7 +49,8 @@ function varargs!(meta, ir::IR, n = 1)
     xs, T = NewArg(n+1), args[end]
     for _ = 1:i-1
       T = Tuple{T.parameters[2:end]...}
-      xs = pushfirst!(ir, Statement(xcall(Base, :tail, xs), type = T))
+      st = Statement(xcall(Base, :tail, xs), type = T)
+      xs = xs isa NewArg ? pushfirst!(ir, st) : insertafter!(ir, xs, st)
     end
     argmap[Argument(i+n)] = xs
   end

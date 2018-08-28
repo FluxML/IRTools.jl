@@ -131,3 +131,5 @@ function insert!(ir::IR, i::SSAValue, x; after = false)
   b, i = blockidx(ir, i)
   insert!(b, i+after, x)
 end
+
+insertafter!(ir::IR, i::SSAValue, x) = insert!(ir, i, x, after=true)
