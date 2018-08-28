@@ -75,6 +75,7 @@ function update!(meta, ir::Core.Compiler.IRCode)
   Core.Compiler.replace_code_newstyle!(meta.code, ir, length(ir.argtypes)-1)
   meta.code.ssavaluetypes = length(meta.code.code)
   slots!(meta.code)
+  return meta.code
 end
 
 update!(meta, ir::IR) = update!(meta, Core.Compiler.IRCode(slots!(ir)))
@@ -86,6 +87,31 @@ update!(meta, ir::IR) = update!(meta, Core.Compiler.IRCode(slots!(ir)))
   ir = varargs!(m, ir)
   argnames!(m, :f, :args)
   ir = spliceargs!(m, ir, (Symbol("#self#"), typeof(roundtrip)))
-  update!(m, ir)
-  return codeinfo(m)
+  return update!(m, ir)
+end
+
+Base.isconst(g::GlobalRef) = isconst(g.mod, g.name)
+Base.getindex(g::GlobalRef) = getfield(g.mod, g.name)
+
+_typeof(x) = typeof(x)
+_typeof(x::GlobalRef) = isconst(x) ? typeof(x[]) : Any
+
+isprimitive(x) =
+  _typeof(x) <: Union{Core.IntrinsicFunction,Core.Builtin}
+
+isprimitive(ir, f) = isprimitive(f)
+isprimitive(ir, f::SSAValue) = isprimitive(ir[f].expr)
+
+@generated function passthrough(f, args...)
+  m = meta(Tuple{f,args...})
+  m == nothing && return :(f(args...))
+  ir = IR(m)
+  for (x, st) in ir
+    (isexpr(st.expr, :call) && !isprimitive(ir, st.expr.args[1])) || continue
+    ir[x] = xcall(IRTools, :passthrough, st.expr.args...)
+  end
+  ir = varargs!(m, ir)
+  argnames!(m, :f, :args)
+  ir = spliceargs!(m, ir, (Symbol("#self#"), typeof(roundtrip)))
+  return update!(m, ir)
 end
