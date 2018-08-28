@@ -1,5 +1,13 @@
 import Base: map
 import Core.Compiler: ssamap, userefs
+import MacroTools: walk
+
+const unreachable = ReturnNode()
+
+walk(x::GotoIfNot, inner, outer) = outer(GotoIfNot(inner(x.cond), x.dest))
+walk(x::ReturnNode, inner, outer) =
+  x == unreachable ? outer(x) :
+  outer(ReturnNode(inner(x.val)))
 
 xcall(mod::Module, f::Symbol, args...) = Expr(:call, GlobalRef(mod, f), args...)
 xcall(f::Symbol, args...) = xcall(Base, f, args...)
