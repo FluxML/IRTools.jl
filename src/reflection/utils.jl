@@ -113,6 +113,6 @@ isprimitive(ir, f::SSAValue) = isprimitive(ir[f].expr)
   end
   ir = varargs!(m, ir)
   argnames!(m, :f, :args)
-  ir = spliceargs!(m, ir, (Symbol("#self#"), typeof(roundtrip)))
+  ir = spliceargs!(m, ir, (Symbol("#self#"), typeof(passthrough)))
   return update!(m, ir)
 end
