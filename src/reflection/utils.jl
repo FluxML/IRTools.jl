@@ -4,22 +4,18 @@ end
 
 Base.show(io::IO, s::Slot) = print(io, s.id)
 
-# function slots!(ir::IRCode)
-#   n = 0
-#   for b = 1:length(ir.cfg.blocks)
-#     i = first(ir.cfg.blocks[b].stmts)
-#     while (phi = ir[SSAValue(i)]) isa PhiNode
-#       slot = Slot(Symbol(:phi, n+=1))
-#       ir[SSAValue(i)] = slot
-#       for (pred, val) in zip(phi.edges, phi.values)
-#         insert_blockend!(ir, pred, Any, :($slot = $val))
-#       end
-#       i += 1
-#     end
-#   end
-#   return compact!(ir)
-# end
-#
+function slots!(ir::IR)
+  n = 0
+  for (x, st) in ir
+    st.expr isa PhiNode || continue
+    slot = ir[x] = Slot(Symbol(:phi, n += 1))
+    for (p, y) in st.expr
+      push!(block(ir, p), :($slot = $y))
+    end
+  end
+  return ir
+end
+
 using Core.Compiler: CodeInfo, SlotNumber
 
 function slots!(ci::CodeInfo)
@@ -78,10 +74,10 @@ end
 function update!(meta, ir::Core.Compiler.IRCode)
   Core.Compiler.replace_code_newstyle!(meta.code, ir, length(ir.argtypes)-1)
   meta.code.ssavaluetypes = length(meta.code.code)
-  # slots!(meta.code)
+  slots!(meta.code)
 end
 
-update!(meta, ir::IR) = update!(meta, Core.Compiler.IRCode(ir))
+update!(meta, ir::IR) = update!(meta, Core.Compiler.IRCode(slots!(ir)))
 
 # Test / example function
 @generated function roundtrip(f, args...)

@@ -28,6 +28,13 @@ CFG(bs) = CFG(bs, map(b -> b.stmts.first, bs[2:end]))
 
 StmtRange(r::UnitRange) = StmtRange(first(r), last(r))
 
+Base.length(phi::PhiNode) = length(phi.edges)
+
+function Base.iterate(phi::PhiNode, i = 1)
+  i > length(phi) && return
+  phi.edges[i]=>phi.values[i], i+1
+end
+
 # SSA contruction (forked from Base for untyped code)
 
 import Core.Compiler: normalize, strip_trailing_junk!, compute_basic_blocks,

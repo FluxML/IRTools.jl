@@ -58,9 +58,18 @@ function blockidx(ir::IR, x::SSAValue)
   block(ir, b), i
 end
 
-function getindex(ir::IR, x::SSAValue)
-  b, i = blockidx(ir, x)
-  b.bb.stmts[i]
+getindex(b::Block, i::Integer) = b.bb.stmts[i]
+setindex!(b::Block, x::Statement, i::Integer) = (b.bb.stmts[i] = x)
+setindex!(b::Block, x, i::Integer) = (b[i] = Statement(b[i], x))
+
+function getindex(ir::IR, i::SSAValue)
+  b, i = blockidx(ir, i)
+  return b[i]
+end
+
+function setindex!(ir::IR, x, i::SSAValue)
+  b, i = blockidx(ir, i)
+  b[i] = x
 end
 
 length(b::Block) = length(b.bb)
