@@ -108,16 +108,7 @@ function IR(ir::IRCode)
   ssamap(x -> defs[x], ir2)
 end
 
-function inline_sparams(ir::IR, sps)
-  map(ir) do ex
-    prewalk(x -> isexpr(x, :static_parameter) ? sps[x.args[1]] : x, ex)
-  end
-end
-
-function IR(meta::Union{Meta,TypedMeta})
-  ir = IRCode(meta)
-  inline_sparams(IR(ir), ir.spvals)
-end
+IR(meta::Union{Meta,TypedMeta}) = IR(IRCode(meta))
 
 function CFG(ir::IR)
   ls = length.(ir.blocks)

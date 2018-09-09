@@ -58,8 +58,9 @@ function varargs!(meta, ir::IR, n = 1)
     arg = xcall(Base, :getfield, NewArg(n+1), i)
     argmap[Argument(i+n)] = pushfirst!(ir, Statement(arg, type = Ts[i]))
   end
+  unnew(x::NewArg) = Argument(x.n); unnew(x) = x
   map(ir) do x
-    prewalk(x -> x isa Argument ? get(argmap, x, x) : x isa NewArg ? Argument(x.n) : x, x)
+    prewalk(x -> unnew(x isa Argument ? get(argmap, x, x) : x), x)
   end
 end
 

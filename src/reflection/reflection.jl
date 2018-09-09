@@ -72,6 +72,7 @@ function meta(T; world = worldcounter())
   type_signature, sps, method = first(_methods)
   mi = Core.Compiler.code_for_method(method, type_signature, sps, world, false)
   ci = Base.isgenerated(mi) ? Core.Compiler.get_staged(mi) : Base.uncompressed_ast(mi)
+  Base.Meta.partially_inline!(ci.code, [], method.sig, Any[sps...], 0, 0, :propagate)
   Meta(method, ci, sps)
 end
 
