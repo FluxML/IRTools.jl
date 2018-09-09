@@ -71,7 +71,7 @@ function meta(T; world = worldcounter())
   length(_methods) == 1 || return nothing
   type_signature, sps, method = first(_methods)
   mi = Core.Compiler.code_for_method(method, type_signature, sps, world, false)
-  ci = Base.isgenerated(mi) ? Base.get_staged(mi) : Base.uncompressed_ast(mi)
+  ci = Base.isgenerated(mi) ? Core.Compiler.get_staged(mi) : Base.uncompressed_ast(mi)
   Meta(method, ci, sps)
 end
 
