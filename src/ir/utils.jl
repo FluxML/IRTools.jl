@@ -24,6 +24,8 @@ function map(f, ir::IR)
   IR(ir.defs, map.(f, ir.blocks), ir.lines, ir.args)
 end
 
+walk(ir::IR, inner, outer) = outer(map(inner, ir))
+
 # TODO non-mutating ssamap/argmap
 ssamap(f, ir::IR) = map(x -> ssamap(f, x), ir)
 
