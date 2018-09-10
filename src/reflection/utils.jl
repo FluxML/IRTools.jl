@@ -6,14 +6,23 @@ Base.show(io::IO, s::Slot) = print(io, s.id)
 
 function slots!(ir::IR)
   n = 0
+  amap = Dict()
   for (x, st) in ir
     st.expr isa PhiNode || continue
     slot = ir[x] = Slot(Symbol(:phi, n += 1))
     for (p, y) in st.expr
-      push!(block(ir, p), :($slot = $y))
+      if y isa SSAValue
+        insertafter!(ir, y, :($slot = $y))
+        amap[y] = slot
+      else
+        push!(block(ir, p), :($slot = $y))
+      end
     end
   end
-  return ir
+  map(ir) do x
+    isexpr(x, :(=)) && return x
+    prewalk(x -> get(amap, x, x), x)
+  end
 end
 
 using Core.Compiler: CodeInfo, SlotNumber
