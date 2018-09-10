@@ -1,5 +1,5 @@
 using Core: CodeInfo, Typeof
-using Core.Compiler: InferenceState, widenconst
+using Core.Compiler: InferenceState, widenconst, svec
 using InteractiveUtils: typesof
 
 worldcounter() = ccall(:jl_get_world_counter, UInt, ())
@@ -62,6 +62,10 @@ function Base.show(io::IO, meta::Meta)
   print(io, meta.method)
 end
 
+# Workaround for what appears to be a Base bug
+untvar(t::TypeVar) = t.ub
+untvar(x) = x
+
 function meta(T; world = worldcounter())
   F = T.parameters[1]
   F isa DataType && (F.name.module === Core.Compiler ||
@@ -70,6 +74,7 @@ function meta(T; world = worldcounter())
   _methods = Base._methods_by_ftype(T, -1, world)
   length(_methods) == 1 || return nothing
   type_signature, sps, method = first(_methods)
+  sps = svec(map(untvar, sps)...)
   mi = Core.Compiler.code_for_method(method, type_signature, sps, world, false)
   ci = Base.isgenerated(mi) ? Core.Compiler.get_staged(mi) : Base.uncompressed_ast(mi)
   Base.Meta.partially_inline!(ci.code, [], method.sig, Any[sps...], 0, 0, :propagate)
