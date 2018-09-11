@@ -2,7 +2,7 @@ struct Slot
   id::Symbol
 end
 
-Base.show(io::IO, s::Slot) = print(io, s.id)
+Base.show(io::IO, s::Slot) = print(io, "@", s.id)
 
 function slots!(ir::IR)
   n = 0
@@ -84,6 +84,7 @@ end
 
 function update!(meta, ir::Core.Compiler.IRCode)
   Core.Compiler.replace_code_newstyle!(meta.code, ir, length(ir.argtypes)-1)
+  meta.code.inferred = false
   meta.code.ssavaluetypes = length(meta.code.code)
   slots!(meta.code)
   return meta.code
