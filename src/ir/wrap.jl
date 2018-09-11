@@ -85,6 +85,7 @@ import ..IRTools: IR, Statement, TypedMeta, Meta, block!
 
 function IRCode(meta::TypedMeta)
   opt = OptimizationState(meta.frame)
+  Base.Meta.partially_inline!(meta.code.code, [], meta.method.sig, Any[opt.sp...], 0, 0, :propagate)
   ir = just_construct_ssa(meta.code, deepcopy(meta.code.code),
                           Int(meta.method.nargs)-1, opt)
   return compact!(ir)
