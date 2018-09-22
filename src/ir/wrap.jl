@@ -20,11 +20,11 @@ for T in :[UseRefIterator, IncrementalCompact, Pair].args
   @eval Base.iterate(x::Compiler.$T, a...) = Compiler.iterate(x, a...)
 end
 
-Base.getindex(r::StmtRange, i) = (r.first:r.last)[i]
+Base.getindex(r::StmtRange, i) = (r.start:r.stop)[i]
 
 PhiNode(x, y) = PhiNode(Any[x...], Any[y...])
 
-CFG(bs) = CFG(bs, map(b -> b.stmts.first, bs[2:end]))
+CFG(bs) = CFG(bs, map(b -> b.stmts.start, bs[2:end]))
 
 StmtRange(r::UnitRange) = StmtRange(first(r), last(r))
 
