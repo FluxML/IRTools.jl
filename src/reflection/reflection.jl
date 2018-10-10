@@ -4,6 +4,8 @@ using InteractiveUtils: typesof
 
 worldcounter() = ccall(:jl_get_world_counter, UInt, ())
 
+isprecompiling() = ccall(:jl_generating_output, Cint, ()) == 1
+
 struct TypedMeta
   frame::InferenceState
   method::Method
@@ -16,6 +18,7 @@ function Base.show(io::IO, meta::TypedMeta)
   print(io, meta.method)
 end
 
+define_typeinf_code2() = isprecompiling() ||
 @eval Core.Compiler function typeinf_code2(method::Method, @nospecialize(atypes), sparams::SimpleVector, run_optimizer::Bool, params::Params)
     code = code_for_method(method, atypes, sparams, params.world)
     code === nothing && return (nothing, Any)

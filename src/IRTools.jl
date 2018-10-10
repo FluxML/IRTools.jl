@@ -1,5 +1,3 @@
-__precompile__(false)
-
 module IRTools
 
 using MacroTools
@@ -18,5 +16,9 @@ include("ir/utils.jl")
 include("reflection/utils.jl")
 
 include("interpret.jl")
+
+function __init__()
+  define_typeinf_code2()
+end
 
 end # module
