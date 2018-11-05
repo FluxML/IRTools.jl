@@ -21,8 +21,10 @@ for T in :[UseRefIterator, IncrementalCompact, Pair].args
 end
 
 if VERSION > v"1.1.0-DEV.560"
+  Base.first(r::StmtRange) = r.start
   Base.getindex(r::StmtRange, i) = (r.start:r.stop)[i]
 else
+  Base.first(r::StmtRange) = r.first
   Base.getindex(r::StmtRange, i) = (r.first:r.last)[i]
 end
 
