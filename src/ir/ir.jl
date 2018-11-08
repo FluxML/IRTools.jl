@@ -133,3 +133,5 @@ function insert!(ir::IR, i::SSAValue, x; after = false)
 end
 
 insertafter!(ir::IR, i::SSAValue, x) = insert!(ir, i, x, after=true)
+
+Base.keys(ir::IR) = first.(sort([SSAValue(i) => v for (i, v) in enumerate(ir.defs)], by = x->x[2]))
