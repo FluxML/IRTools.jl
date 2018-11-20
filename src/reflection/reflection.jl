@@ -87,7 +87,7 @@ function meta(T; world = worldcounter())
 end
 
 function code_ir(f, T)
-  m = typed_meta(Tuple{Typeof(f),T.parameters...})
+  m = meta(Tuple{Typeof(f),T.parameters...})
   return IR(m)
 end
 
