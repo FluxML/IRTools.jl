@@ -102,7 +102,7 @@ end
 
 function IRCode(meta::Meta)
   ir = just_construct_ssa(meta.code, deepcopy(meta.code.code),
-                          Int(meta.method.nargs)-1, meta.sparams)
+                          Int(meta.nargs)-1, meta.sparams)
   return compact!(ir)
 end
 

@@ -58,6 +58,7 @@ end
 struct Meta
   method::Method
   code::CodeInfo
+  nargs::Int
   sparams
 end
 
@@ -72,18 +73,38 @@ untvar(x) = x
 
 function meta(T; world = worldcounter())
   F = T.parameters[1]
+  F == typeof(invoke) && return invoke_meta(T; world = world)
   F isa DataType && (F.name.module === Core.Compiler ||
                      F <: Core.Builtin ||
                      F <: Core.Builtin) && return nothing
   _methods = Base._methods_by_ftype(T, -1, world)
-  length(_methods) == 1 || return nothing
-  type_signature, sps, method = first(_methods)
+  length(_methods) == 0 && return nothing
+  type_signature, sps, method = last(_methods)
   sps = svec(map(untvar, sps)...)
   mi = Core.Compiler.code_for_method(method, type_signature, sps, world, false)
   ci = Base.isgenerated(mi) ? Core.Compiler.get_staged(mi) : Base.uncompressed_ast(mi)
   ci.method_for_inference_limit_heuristics = method
   Base.Meta.partially_inline!(ci.code, [], method.sig, Any[sps...], 0, 0, :propagate)
-  Meta(method, ci, sps)
+  Meta(method, ci, method.nargs, sps)
+end
+
+function invoke_tweaks!(ci::CodeInfo)
+  ci.slotnames = [:invoke, ci.slotnames[1], :T, ci.slotnames[2:end]...]
+  ci.slotflags = [0x00, ci.slotflags[1], 0x00, ci.slotflags[2:end]...]
+  ci.code = map(ci.code) do x
+    prewalk(x) do x
+      x isa SlotNumber ? SlotNumber(x.id+2) : x
+    end
+  end
+end
+
+function invoke_meta(T; world)
+  F = T.parameters[2]
+  A = T.parameters[3]::Type{<:Type{<:Tuple}}
+  T = Tuple{F,A.parameters[1].parameters...}
+  m = meta(T, world = world)
+  invoke_tweaks!(m.code)
+  return Meta(m.method, m.code, m.nargs+2, m.sparams)
 end
 
 function code_ir(f, T)
