@@ -4,7 +4,7 @@ using MacroTools: isexpr, prewalk
 import Core: SSAValue, GotoNode, Compiler
 import Core: Typeof
 import Core.Compiler: CodeInfo, IRCode, CFG, BasicBlock, Argument, ReturnNode,
-  NullLineInfo, just_construct_ssa, compact!, NewNode, InferenceState, OptimizationState,
+  just_construct_ssa, compact!, NewNode, InferenceState, OptimizationState,
   GotoIfNot, PhiNode, PiNode, StmtRange, IncrementalCompact, insert_node!, insert_node_here!,
   compact!, finish, DomTree, construct_domtree, dominates, userefs, widenconst, types, verify_ir,
   ssamap
@@ -92,17 +92,21 @@ end
 using ..IRTools
 import ..IRTools: IR, Statement, TypedMeta, Meta, block!
 
+sparams(opt::OptimizationState) = VERSION > v"1.2-" ? Any[t.val for t in opt.sptypes] : Any[opt.sp...]
+
 function IRCode(meta::TypedMeta)
   opt = OptimizationState(meta.frame)
-  Base.Meta.partially_inline!(meta.code.code, [], meta.method.sig, Any[opt.sp...], 0, 0, :propagate)
+  Base.Meta.partially_inline!(meta.code.code, [], meta.method.sig, sparams(opt), 0, 0, :propagate)
   ir = just_construct_ssa(meta.code, deepcopy(meta.code.code),
                           Int(meta.method.nargs)-1, opt)
+  resize!(ir.argtypes, meta.method.nargs)
   return compact!(ir)
 end
 
 function IRCode(meta::Meta)
+  sps = VERSION > v"1.2-" ? Any[meta.sparams...] : meta.sparams
   ir = just_construct_ssa(meta.code, deepcopy(meta.code.code),
-                          Int(meta.nargs)-1, meta.sparams)
+                          Int(meta.nargs)-1, sps)
   return compact!(ir)
 end
 
@@ -141,7 +145,8 @@ function IRCode(ir::IR)
   end
   stmts = [ssamap(x -> map[x], st.expr) for (_, st) in sts]
   flags = [0x00 for _ in stmts]
-  IRCode(stmts, types, lines, flags, CFG(ir), ir.lines, ir.args, [], Core.svec())
+  sps = VERSION > v"1.2-" ? [] : Core.svec()
+  IRCode(stmts, types, lines, flags, CFG(ir), ir.lines, ir.args, [], sps)
 end
 
 end
