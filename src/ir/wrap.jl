@@ -97,7 +97,7 @@ sparams(opt::OptimizationState) = VERSION > v"1.2-" ? Any[t.val for t in opt.spt
 function IRCode(meta::TypedMeta)
   opt = OptimizationState(meta.frame)
   Base.Meta.partially_inline!(meta.code.code, [], meta.method.sig, sparams(opt), 0, 0, :propagate)
-  ir = just_construct_ssa(meta.code, deepcopy(meta.code.code),
+  ir = just_construct_ssa(meta.code, copy(meta.code.code),
                           Int(meta.method.nargs)-1, opt)
   resize!(ir.argtypes, meta.method.nargs)
   return compact!(ir)
@@ -105,7 +105,7 @@ end
 
 function IRCode(meta::Meta)
   sps = VERSION > v"1.2-" ? Any[meta.sparams...] : meta.sparams
-  ir = just_construct_ssa(meta.code, deepcopy(meta.code.code),
+  ir = just_construct_ssa(meta.code, copy(meta.code.code),
                           Int(meta.nargs)-1, sps)
   return compact!(ir)
 end
