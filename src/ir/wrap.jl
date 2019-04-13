@@ -89,10 +89,14 @@ function just_construct_ssa(ci::CodeInfo, code::Vector{Any}, nargs::Int, sp)
   return ir
 end
 
-using ..IRTools
-import ..IRTools: IR, Statement, TypedMeta, Meta, block!
-
 sparams(opt::OptimizationState) = VERSION > v"1.2-" ? Any[t.val for t in opt.sptypes] : Any[opt.sp...]
+
+using ..IRTools
+import ..IRTools: IR, Statement, Branch, TypedMeta, Meta, block!, unreachable
+
+Branch(x::GotoNode) = Branch(nothing, x.label, [])
+Branch(x::GotoIfNot) = Branch(x.cond, x.dest, [])
+Branch(x::ReturnNode) = isdefined(x, :val) ? Branch(nothing, 0, [x.val]) : unreachable
 
 function IRCode(meta::TypedMeta)
   opt = OptimizationState(meta.frame)
@@ -116,8 +120,12 @@ function IR(ir::IRCode)
   isempty(ir.new_nodes) || error("IRCode must be compacted")
   for i = 1:length(ir.stmts)
     findfirst(==(i), ir.cfg.index) == nothing || block!(ir2)
-    x = push!(ir2, Statement(ir.stmts[i], ir.types[i], ir.lines[i]))
-    defs[SSAValue(i)] = x
+    if ir.stmts[i] isa Union{GotoIfNot,GotoNode,ReturnNode}
+      push!(ir2.blocks[end].branches, Branch(ir.stmts[i]))
+    else
+      x = push!(ir2, Statement(ir.stmts[i], ir.types[i], ir.lines[i]))
+      defs[SSAValue(i)] = x
+    end
   end
   ssamap(x -> defs[x], ir2)
 end

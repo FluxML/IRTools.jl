@@ -1,10 +1,15 @@
-using Core.Compiler: Argument, SSAValue, PhiNode, GotoNode, GotoIfNot, ReturnNode, LineInfoNode
+using Core.Compiler: Argument, SSAValue, LineInfoNode
 import Base: push!, insert!, getindex, setindex!, iterate, length
 
-isgoto(x) = x isa Union{GotoNode,GotoIfNot}
-iscontrol(x) = isgoto(x) || x isa ReturnNode
-label(x::GotoNode) = x.label
-label(x::GotoIfNot) = x.dest
+struct Branch
+  condition::Union{SSAValue,Nothing}
+  block::Int
+  args::Vector{SSAValue}
+end
+
+isreturn(b::Branch) = b.block == 0 && length(b.args) == 1
+
+const unreachable = Branch(nothing, 0, [])
 
 struct Statement
   expr::Any
@@ -20,12 +25,12 @@ Statement(x::Statement, expr = x.expr; type = x.type, line = x.line) =
 
 struct BasicBlock
   stmts::Vector{Statement}
-  gotos::Vector{Statement}
+  branches::Vector{Branch}
 end
 
-BasicBlock() = BasicBlock([], [])
+BasicBlock(stmts = []) = BasicBlock(stmts, [])
 
-length(bb::BasicBlock) = length(bb.stmts) + length(bb.gotos)
+length(bb::BasicBlock) = length(bb.stmts)
 
 struct IR
   defs::Vector{Tuple{Int,Int}}
@@ -47,10 +52,11 @@ end
 struct Block
   ir::IR
   id::Int
-  bb::BasicBlock
 end
 
-block(ir::IR, i) = Block(ir, i, ir.blocks[i])
+basicblock(b::Block) = b.ir.blocks[b.id]
+
+block(ir::IR, i) = Block(ir, i)
 blocks(ir::IR) = [block(ir, i) for i = 1:length(ir.blocks)]
 
 function blockidx(ir::IR, x::SSAValue)
@@ -58,8 +64,8 @@ function blockidx(ir::IR, x::SSAValue)
   block(ir, b), i
 end
 
-getindex(b::Block, i::Integer) = b.bb.stmts[i]
-setindex!(b::Block, x::Statement, i::Integer) = (b.bb.stmts[i] = x)
+getindex(b::Block, i::Integer) = basicblock(b).stmts[i]
+setindex!(b::Block, x::Statement, i::Integer) = (basicblock(b).stmts[i] = x)
 setindex!(b::Block, x, i::Integer) = (b[i] = Statement(b[i], x))
 
 function getindex(ir::IR, i::SSAValue)
@@ -72,18 +78,18 @@ function setindex!(ir::IR, x, i::SSAValue)
   b[i] = x
 end
 
-length(b::Block) = length(b.bb)
+length(b::Block) = length(basicblock(b))
 
 function successors(b::Block)
-  gotos = [st.expr for st in b.bb.gotos]
-  succs = Int[label(x) for x in filter(isgoto, gotos)]
-  all(x -> x isa GotoIfNot, gotos) && push!(succs, b.id+1)
+  brs = basicblock(b).branches
+  succs = Int[br.block for br in brs if br.block > 0]
+  all(br -> br.condition != nothing, brs) && push!(succs, b.id+1)
   return succs
 end
 
 function iterate(b::Block, i = 1)
   i > length(b) && return
-  el = i <= length(b.bb.stmts) ? b.bb.stmts[i] : b.bb.gotos[i-length(b.bb.stmts)]
+  el = basicblock(b).stmts[i]
   def = findfirst(==((b.id,i)), b.ir.defs)
   def == nothing || (def = SSAValue(def))
   return ((def, el), i+1)
@@ -99,18 +105,13 @@ end
 
 function push!(b::Block, x)
   x = Statement(x)
-  if iscontrol(x.expr)
-    push!(b.bb.gotos, x)
-    return
-  else
-    push!(b.bb.stmts, x)
-    push!(b.ir.defs, (b.id, length(b.bb.stmts)))
-    return SSAValue(length(b.ir.defs))
-  end
+  push!(basicblock(b).stmts, x)
+  push!(b.ir.defs, (b.id, length(basicblock(b).stmts)))
+  return SSAValue(length(b.ir.defs))
 end
 
 function insert!(b::Block, idx::Integer, x)
-  insert!(b.bb.stmts, idx, Statement(x))
+  insert!(basicblock(b).stmts, idx, Statement(x))
   for i = 1:length(b.ir.defs)
     c, j = b.ir.defs[i]
     if c == b.id && j >= idx
