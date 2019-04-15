@@ -8,8 +8,9 @@ xcall(mod::Module, f::Symbol, args...) = Expr(:call, GlobalRef(mod, f), args...)
 xcall(f::Symbol, args...) = xcall(Base, f, args...)
 
 function map(f, b::BasicBlock)
-  f′(x) = Statement(x, f(x.expr))
-  BasicBlock(f′.(b.stmts), b.branches)
+  stmts = map(x -> Statement(x, f(x.expr)), b.stmts)
+  branches = map(br -> Branch(br, condition = f(br.condition)), b.branches)
+  BasicBlock(stmts, b.args, branches)
 end
 
 function map(f, ir::IR)
@@ -18,18 +19,4 @@ end
 
 walk(ir::IR, inner, outer) = outer(map(inner, ir))
 
-# TODO non-mutating ssamap/argmap
-ssamap(f, ir::IR) = map(x -> ssamap(f, x), ir)
-
-function argmap(f, @nospecialize(stmt))
-    urs = userefs(stmt)
-    for op in urs
-        val = op[]
-        if isa(val, Argument)
-            op[] = f(val)
-        end
-    end
-    return urs[]
-end
-
-argmap(f, ir::IR) = map(x -> argmap(f, x), ir)
+varmap(f, x) = prewalk(x -> x isa Variable ? f(x) : x, x)

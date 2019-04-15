@@ -44,6 +44,11 @@ function Base.iterate(phi::PhiNode, i = 1)
   phi.edges[i]=>phi.values[i], i+1
 end
 
+function Base.getindex(phi::PhiNode, b)
+  j = findfirst(c -> c == b, phi.edges)
+  return phi.values[j]
+end
+
 # SSA contruction (forked from Base for untyped code)
 
 import Core.Compiler: normalize, strip_trailing_junk!, compute_basic_blocks,
@@ -92,11 +97,19 @@ end
 sparams(opt::OptimizationState) = VERSION > v"1.2-" ? Any[t.val for t in opt.sptypes] : Any[opt.sp...]
 
 using ..IRTools
-import ..IRTools: IR, Statement, Branch, TypedMeta, Meta, block!, unreachable
+import ..IRTools: IR, Variable, Statement, Branch, TypedMeta, Meta, block!,
+  unreachable, varmap
+
+function vars(ex)
+  _vars(x) = x
+  _vars(x::SSAValue) = Variable(x.id)
+  _vars(x::Argument) = IRTools.Argument(x.n)
+  prewalk(_vars, ex)
+end
 
 Branch(x::GotoNode) = Branch(nothing, x.label, [])
-Branch(x::GotoIfNot) = Branch(x.cond, x.dest, [])
-Branch(x::ReturnNode) = isdefined(x, :val) ? Branch(nothing, 0, [x.val]) : unreachable
+Branch(x::GotoIfNot) = Branch(vars(x.cond), x.dest, [])
+Branch(x::ReturnNode) = isdefined(x, :val) ? Branch(nothing, 0, [vars(x.val)]) : unreachable
 
 function IRCode(meta::TypedMeta)
   opt = OptimizationState(meta.frame)
@@ -114,6 +127,33 @@ function IRCode(meta::Meta)
   return compact!(ir)
 end
 
+function branches_for!(ir, (from, to))
+  brs = []
+  for br in ir.blocks[from].branches
+    br.block == to && push!(brs, br)
+  end
+  if isempty(brs)
+    br = Branch(nothing, to, [])
+    push!(ir.blocks[from].branches, br)
+    push!(brs, br)
+  end
+  return brs
+end
+
+function rewrite_phis!(ir::IR)
+  for (v, st) in ir
+    ex = st.expr
+    ex isa PhiNode || continue
+    to, = IRTools.blockidx(ir, v)
+    push!(IRTools.basicblock(to).args, v)
+    for (from, arg) in zip(ex.edges, ex.values), br in branches_for!(ir, from=>to.id)
+      push!(br.args, ex[from])
+    end
+    delete!(ir, v)
+  end
+  return ir
+end
+
 function IR(ir::IRCode)
   ir2 = IR(ir.linetable, ir.argtypes)
   defs = Dict()
@@ -123,11 +163,12 @@ function IR(ir::IRCode)
     if ir.stmts[i] isa Union{GotoIfNot,GotoNode,ReturnNode}
       push!(ir2.blocks[end].branches, Branch(ir.stmts[i]))
     else
-      x = push!(ir2, Statement(ir.stmts[i], ir.types[i], ir.lines[i]))
-      defs[SSAValue(i)] = x
+      x = push!(ir2, Statement(vars(ir.stmts[i]), ir.types[i], ir.lines[i]))
+      defs[Variable(i)] = x
     end
   end
-  ssamap(x -> defs[x], ir2)
+  ir2 = varmap(x -> defs[x], ir2)
+  return rewrite_phis!(ir2)
 end
 
 IR(meta::Union{Meta,TypedMeta}) = IR(IRCode(meta))

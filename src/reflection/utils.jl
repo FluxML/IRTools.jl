@@ -11,7 +11,7 @@ function slots!(ir::IR)
     st.expr isa PhiNode || continue
     slot = ir[x] = Slot(Symbol(:phi, n += 1))
     for (p, y) in st.expr
-      if y isa SSAValue
+      if y isa Variable
         insertafter!(ir, y, :($slot = $y))
         amap[y] = slot
       else
@@ -112,7 +112,7 @@ isprimitive(x) =
   _typeof(x) <: Union{Core.IntrinsicFunction,Core.Builtin}
 
 isprimitive(ir, f) = isprimitive(f)
-isprimitive(ir, f::SSAValue) = isprimitive(ir[f].expr)
+isprimitive(ir, f::Variable) = isprimitive(ir[f].expr)
 
 @generated function passthrough(f, args...)
   m = meta(Tuple{f,args...})
