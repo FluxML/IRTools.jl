@@ -21,15 +21,14 @@ julia> using IRTools
 julia> ir = @code_ir pow(2, 3)
 1:
   %1 = nothing
-2:
-  %2 = φ (%1 => 1, %3 => %6)
-  %3 = φ (%1 => _3, %3 => %5)
+  br 2 (1, _3)
+2: (%2, %3)
   %4 = %3 > 0
-  goto %4 if not %4
+  br 4 unless %4
 3:
   %5 = %3 - 1
   %6 = %2 * _2
-  goto %2
+  br 2 (%6, %5)
 4:
   return %2
 ```

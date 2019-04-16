@@ -10,7 +10,7 @@ function show(io::IO, b::Branch)
   elseif isreturn(b)
     print(io, "return $(b.args[1])")
   else
-    print(io, "br #$(b.block)")
+    print(io, "br $(b.block)")
     if !isempty(b.args)
       print(io, " (")
       join(io, b.args, ", ")
