@@ -15,6 +15,8 @@ struct Argument
   id::Int
 end
 
+arg(id::Integer) = Argument(id)
+
 struct Branch
   condition::Any
   block::Int
@@ -43,7 +45,7 @@ Statement(x::Statement, expr = x.expr; type = x.type, line = x.line) =
 
 struct BasicBlock
   stmts::Vector{Statement}
-  args::Vector{Variable}
+  args::Vector{Any}
   branches::Vector{Branch}
 end
 
@@ -127,7 +129,12 @@ function iterate(ir::IR, (b, i) = (1,1))
   return x, (b, i)
 end
 
+applyex(f, x) = x
+applyex(f, x::Expr) =
+  Expr(x.head, [x isa Expr ? f(x) : x for x in x.args]...)
+
 function push!(b::Block, x)
+  x = applyex(x -> push!(b, x), x)
   x = Statement(x)
   push!(basicblock(b).stmts, x)
   push!(b.ir.defs, (b.id, length(basicblock(b).stmts)))
