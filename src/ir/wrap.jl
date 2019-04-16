@@ -173,29 +173,47 @@ end
 
 IR(meta::Union{Meta,TypedMeta}) = IR(IRCode(meta))
 
-function CFG(ir::IR)
-  ls = length.(ir.blocks)
-  ranges = [i-l+1:i for (l, i) in zip(ls, cumsum(ls))]
-  index = [i[1] for i in ranges[2:end]]
-  succs = IRTools.successors.(IRTools.blocks(ir))
-  preds = [filter(j -> i in succs[j], 1:length(succs)) for i = 1:length(succs)]
-  bs = [BasicBlock(StmtRange(r), ps, ss) for (r, ps, ss) in zip(ranges, preds, succs)]
-  return CFG(bs, index)
+function unvars(ex)
+  _unvars(x) = x
+  _unvars(x::Variable) = SSAValue(x.id)
+  _unvars(x::IRTools.Argument) = Argument(x.id)
+  prewalk(_unvars, ex)
 end
 
 function IRCode(ir::IR)
-  sts = collect(ir)
-  lines = Int32[st.line for (_, st) in sts]
-  types = Any[st.type for (_, st) in sts]
-  map = Dict{SSAValue,SSAValue}()
-  for (i, (j, _)) in enumerate(sts)
-    j == nothing && continue
-    map[j] = SSAValue(i)
+  defs = Dict()
+  stmts, types, lines = [], [], Int32[]
+  index = Int[]
+  for b in IRTools.blocks(ir)
+    @assert isempty(IRTools.basicblock(b).args)
+    for (v, st) in b
+      defs[v] = Variable(length(stmts)+1)
+      ex = varmap(x -> get(defs, x, x), st.expr) |> unvars
+      push!(stmts, ex)
+      push!(types, st.type)
+      push!(lines, st.line)
+    end
+    for br in IRTools.basicblock(b).branches
+      if IRTools.isreturn(br)
+        push!(stmts, ReturnNode(br.args[1]))
+      elseif br.condition == nothing
+        push!(stmts, GotoNode(br.block))
+      else
+        cond = get(defs, br.condition, br.condition) |> unvars
+        push!(stmts, GotoIfNot(cond, br.block))
+      end
+      push!(types, Any); push!(lines, 0)
+    end
+    push!(index, length(stmts)+1)
   end
-  stmts = [ssamap(x -> map[x], st.expr) for (_, st) in sts]
+  ranges = StmtRange.([1, index[1:end-1]...], index.-1)
+  succs = IRTools.successors.(IRTools.blocks(ir))
+  preds = [filter(j -> i in succs[j], 1:length(succs)) for i = 1:length(succs)]
+  bs = BasicBlock.(ranges, preds, succs)
+  cfg = CFG(bs, index)
   flags = [0x00 for _ in stmts]
   sps = VERSION > v"1.2-" ? [] : Core.svec()
-  IRCode(stmts, types, lines, flags, CFG(ir), ir.lines, ir.args, [], sps)
+  IRCode(stmts, types, lines, flags, cfg, ir.lines, ir.args, [], sps)
 end
 
 end

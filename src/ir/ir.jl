@@ -51,8 +51,6 @@ end
 
 BasicBlock(stmts = []) = BasicBlock(stmts, [], [])
 
-length(bb::BasicBlock) = length(bb.stmts)
-
 struct IR
   defs::Vector{Tuple{Int,Int}}
   blocks::Vector{BasicBlock}
@@ -63,7 +61,7 @@ end
 IR() = IR([],[BasicBlock()],[],[])
 IR(lines::Vector{LineInfoNode},args) = IR([],[BasicBlock()],lines,args)
 
-length(ir::IR) = sum(length, ir.blocks)
+length(ir::IR) = sum(x -> x != (-1, -1), ir.defs)
 
 function block!(ir::IR)
   push!(ir.blocks, BasicBlock())
@@ -105,7 +103,7 @@ function Base.delete!(ir::IR, i::Variable)
   return ir
 end
 
-length(b::Block) = length(basicblock(b))
+length(b::Block) = sum(x -> x[1] == b.id, b.ir.defs)
 
 function successors(b::Block)
   brs = basicblock(b).branches
@@ -115,7 +113,7 @@ function successors(b::Block)
 end
 
 function iterate(b::Block, i = 1)
-  i > length(b) && return
+  i > length(basicblock(b).stmts) && return
   el = basicblock(b).stmts[i]
   def = findfirst(==((b.id,i)), b.ir.defs)
   def == nothing && return iterate(b, i+1)

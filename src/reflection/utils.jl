@@ -4,25 +4,26 @@ end
 
 Base.show(io::IO, s::Slot) = print(io, "@", s.id)
 
+spatslot(b, i) = Slot(Symbol(:spat_, b, :_, i))
+
 function slots!(ir::IR)
-  n = 0
-  amap = Dict()
-  for (x, st) in ir
-    st.expr isa PhiNode || continue
-    slot = ir[x] = Slot(Symbol(:phi, n += 1))
-    for (p, y) in st.expr
-      if y isa Variable
-        insertafter!(ir, y, :($slot = $y))
-        amap[y] = slot
-      else
-        push!(block(ir, p), :($slot = $y))
+  slots = Dict()
+  for b in blocks(ir)
+    # Block arguments
+    for (i, var) in enumerate(basicblock(b).args)
+      slots[var] = spatslot(b.id, i)
+    end
+    empty!(basicblock(b).args)
+    # Branches
+    for br in basicblock(b).branches
+      isreturn(br) && continue
+      for (i, val) in enumerate(br.args)
+        push!(b, :($(spatslot(br.block, i)) = $val))
       end
+      empty!(br.args)
     end
   end
-  map(ir) do x
-    isexpr(x, :(=)) && return x
-    prewalk(x -> get(amap, x, x), x)
-  end
+  return varmap(x -> get(slots, x, x), ir)
 end
 
 using Core.Compiler: CodeInfo, SlotNumber
