@@ -43,7 +43,7 @@ function slots!(ci::CodeInfo)
 end
 
 struct NewArg
-  n::Int
+  id::Int
 end
 
 function varargs!(meta, ir::IR, n = 1)
@@ -68,14 +68,14 @@ function varargs!(meta, ir::IR, n = 1)
     arg = xcall(Base, :getfield, NewArg(n+1), i)
     argmap[Argument(i+n)] = pushfirst!(ir, Statement(arg, type = Ts[i]))
   end
-  unnew(x::NewArg) = Argument(x.n); unnew(x) = x
+  unnew(x::NewArg) = Argument(x.id); unnew(x) = x
   map(ir) do x
     prewalk(x -> unnew(x isa Argument ? get(argmap, x, x) : x), x)
   end
 end
 
 function spliceargs!(meta, ir::IR, args...)
-  ir = argmap(x -> Argument(x.n + length(args)), ir)
+  ir = argmap(x -> Argument(x.id + length(args)), ir)
   for (name, T) in reverse(args)
     pushfirst!(ir.args, T)
     pushfirst!(meta.code.slotnames, name)

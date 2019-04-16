@@ -15,12 +15,10 @@ struct Argument
   id::Int
 end
 
-const Reference = Union{Variable,Argument}
-
 struct Branch
-  condition::Union{Reference,Nothing}
+  condition::Any
   block::Int
-  args::Vector{Reference}
+  args::Vector{Any}
 end
 
 Branch(br::Branch; condition = br.condition,

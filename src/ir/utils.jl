@@ -9,7 +9,7 @@ xcall(f::Symbol, args...) = xcall(Base, f, args...)
 
 function map(f, b::BasicBlock)
   stmts = map(x -> Statement(x, f(x.expr)), b.stmts)
-  branches = map(br -> Branch(br, condition = f(br.condition)), b.branches)
+  branches = map(br -> Branch(br, condition = f(br.condition), args = f.(br.args)), b.branches)
   BasicBlock(stmts, b.args, branches)
 end
 
@@ -20,3 +20,5 @@ end
 walk(ir::IR, inner, outer) = outer(map(inner, ir))
 
 varmap(f, x) = prewalk(x -> x isa Variable ? f(x) : x, x)
+
+argmap(f, x) = prewalk(x -> x isa Argument ? f(x) : x, x)

@@ -195,7 +195,8 @@ function IRCode(ir::IR)
     end
     for br in IRTools.basicblock(b).branches
       if IRTools.isreturn(br)
-        push!(stmts, ReturnNode(br.args[1]))
+        x = get(defs, br.args[1], br.args[1]) |> unvars
+        push!(stmts, ReturnNode(x))
       elseif br.condition == nothing
         push!(stmts, GotoNode(br.block))
       else
