@@ -3,7 +3,8 @@ using Documenter, IRTools
 makedocs(
   sitename="IRTools",
   pages = [
-        "Home" => "index.md"],
+        "Home" => "index.md",
+        "Dynamo" => "dynamo.md"],
   format = Documenter.HTML(prettyurls = haskey(ENV, "CI")))
 
 deploydocs(
