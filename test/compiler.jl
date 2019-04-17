@@ -1,5 +1,17 @@
 using IRTools, Test
-using IRTools: roundtrip, passthrough
+using IRTools: @dynamo, IR, isexpr, xcall
+
+@dynamo roundtrip(m) = IR(m)
+
+@dynamo function passthrough(m)
+  m == nothing && return
+  ir = IR(m)
+  for (x, st) in ir
+    isexpr(st.expr, :call) || continue
+    ir[x] = xcall(Main, :passthrough, st.expr.args...)
+  end
+  return ir
+end
 
 add(a, b) = a+b
 @test roundtrip(add, 2, 3) == 5

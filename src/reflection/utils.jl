@@ -46,7 +46,7 @@ struct NewArg
   id::Int
 end
 
-function varargs!(meta, ir::IR, n = 1)
+function varargs!(meta, ir::IR, n = 0)
   isva = meta.method.isva
   Ts = widenconst.(ir.args[n+1:end])
   args = !isva ?
@@ -92,39 +92,3 @@ function update!(meta, ir::Core.Compiler.IRCode)
 end
 
 update!(meta, ir::IR) = update!(meta, Core.Compiler.IRCode(slots!(ir)))
-
-# Test / example function
-@generated function roundtrip(f, args...)
-  m = meta(Tuple{f,args...})
-  ir = IR(m)
-  ir = varargs!(m, ir)
-  argnames!(m, :f, :args)
-  ir = spliceargs!(m, ir, (Symbol("#self#"), typeof(roundtrip)))
-  return update!(m, ir)
-end
-
-Base.isconst(g::GlobalRef) = isconst(g.mod, g.name)
-Base.getindex(g::GlobalRef) = getfield(g.mod, g.name)
-
-_typeof(x) = typeof(x)
-_typeof(x::GlobalRef) = isconst(x) ? typeof(x[]) : Any
-
-isprimitive(x) =
-  _typeof(x) <: Union{Core.IntrinsicFunction,Core.Builtin}
-
-isprimitive(ir, f) = isprimitive(f)
-isprimitive(ir, f::Variable) = isprimitive(ir[f].expr)
-
-@generated function passthrough(f, args...)
-  m = meta(Tuple{f,args...})
-  m == nothing && return :(f(args...))
-  ir = IR(m)
-  for (x, st) in ir
-    (isexpr(st.expr, :call) && !isprimitive(ir, st.expr.args[1])) || continue
-    ir[x] = xcall(IRTools, :passthrough, st.expr.args...)
-  end
-  ir = varargs!(m, ir)
-  argnames!(m, :f, :args)
-  ir = spliceargs!(m, ir, (Symbol("#self#"), typeof(passthrough)))
-  return update!(m, ir)
-end

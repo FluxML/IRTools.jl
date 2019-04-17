@@ -14,6 +14,7 @@ include("ir/print.jl")
 include("ir/parse.jl")
 
 include("reflection/utils.jl")
+include("reflection/dynamo.jl")
 
 include("interpret.jl")
 

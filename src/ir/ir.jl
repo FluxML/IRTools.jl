@@ -88,6 +88,18 @@ getindex(b::Block, i::Integer) = basicblock(b).stmts[i]
 setindex!(b::Block, x::Statement, i::Integer) = (basicblock(b).stmts[i] = x)
 setindex!(b::Block, x, i::Integer) = (b[i] = Statement(b[i], x))
 
+function branch!(b::Block, block::Integer, args...; unless = nothing)
+  push!(basicblock(b).branches, Branch(unless, block, Any[args...]))
+  return b
+end
+
+function branch!(ir::IR, args...; kw...)
+  branch!(blocks(ir)[end], args...; kw...)
+  return ir
+end
+
+return!(ir, x) = branch!(ir, 0, x)
+
 function getindex(ir::IR, i::Variable)
   b, i = blockidx(ir, i)
   return b[i]
