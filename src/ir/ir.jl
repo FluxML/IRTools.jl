@@ -29,6 +29,8 @@ Branch(br::Branch; condition = br.condition,
 
 isreturn(b::Branch) = b.block == 0 && length(b.args) == 1
 
+arguments(b::Branch) = b.args
+
 const unreachable = Branch(nothing, 0, [])
 
 struct Statement
@@ -51,6 +53,9 @@ end
 
 BasicBlock(stmts = []) = BasicBlock(stmts, [], [])
 
+branches(bb::BasicBlock) = bb.branches
+arguments(bb::BasicBlock) = bb.args
+
 struct IR
   defs::Vector{Tuple{Int,Int}}
   blocks::Vector{BasicBlock}
@@ -63,9 +68,14 @@ IR(lines::Vector{LineInfoNode},args) = IR([],[BasicBlock()],lines,args)
 
 length(ir::IR) = sum(x -> x != (-1, -1), ir.defs)
 
-function block!(ir::IR)
-  push!(ir.blocks, BasicBlock())
+function block!(ir::IR, i = length(blocks(ir))+1)
+  insert!(ir.blocks, i, BasicBlock())
   return ir
+end
+
+function var!(ir)
+  push!(ir.defs, (-1, -1))
+  return Variable(length(ir.defs))
 end
 
 struct Block
@@ -74,6 +84,16 @@ struct Block
 end
 
 basicblock(b::Block) = b.ir.blocks[b.id]
+branches(b::Block) = branches(basicblock(b))
+arguments(b::Block) = arguments(basicblock(b))
+
+isreturn(b::Block) = any(isreturn, branches(b))
+
+function argument!(b)
+  arg = var!(b.ir)
+  push!(arguments(b), arg)
+  return arg
+end
 
 block(ir::IR, i) = Block(ir, i)
 blocks(ir::IR) = [block(ir, i) for i = 1:length(ir.blocks)]
@@ -88,8 +108,11 @@ getindex(b::Block, i::Integer) = basicblock(b).stmts[i]
 setindex!(b::Block, x::Statement, i::Integer) = (basicblock(b).stmts[i] = x)
 setindex!(b::Block, x, i::Integer) = (b[i] = Statement(b[i], x))
 
+branch(block::Integer, args...; unless = nothing) =
+  Branch(unless, block, Any[args...])
+
 function branch!(b::Block, block::Integer, args...; unless = nothing)
-  push!(basicblock(b).branches, Branch(unless, block, Any[args...]))
+  push!(branches(b), branch(block, args...; unless = unless))
   return b
 end
 

@@ -16,6 +16,8 @@ include("ir/parse.jl")
 include("reflection/utils.jl")
 include("reflection/dynamo.jl")
 
+include("passes/passes.jl")
+
 include("interpret.jl")
 
 function __init__()
