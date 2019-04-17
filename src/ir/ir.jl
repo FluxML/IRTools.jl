@@ -28,6 +28,7 @@ Branch(br::Branch; condition = br.condition,
   Branch(condition, block, args)
 
 isreturn(b::Branch) = b.block == 0 && length(b.args) == 1
+isconditional(b::Branch) = b.condition != nothing
 
 arguments(b::Branch) = b.args
 
@@ -69,6 +70,7 @@ IR(lines::Vector{LineInfoNode},args) = IR([],[BasicBlock()],lines,args)
 length(ir::IR) = sum(x -> x != (-1, -1), ir.defs)
 
 function block!(ir::IR, i = length(blocks(ir))+1)
+  @assert i == length(blocks(ir))+1 # not implemented
   insert!(ir.blocks, i, BasicBlock())
   return ir
 end
@@ -89,10 +91,37 @@ arguments(b::Block) = arguments(basicblock(b))
 
 isreturn(b::Block) = any(isreturn, branches(b))
 
-function argument!(b)
+function explicitbranch!(b::Block)
+  a = block(b.ir, b.id-1)
+  if all(isconditional, branches(a))
+    branch!(a, b.id)
+  end
+end
+
+function argument!(b::Block, value = nothing)
   arg = var!(b.ir)
   push!(arguments(b), arg)
+  explicitbranch!(b)
+  for c in blocks(b.ir), br in branches(c)
+    br.block == b.id && push!(arguments(br), value)
+  end
   return arg
+end
+
+function emptyargs!(b::Block)
+  empty!(arguments(b))
+  for c in blocks(b.ir), br in branches(c)
+    br.block == b.id && empty!(arguments(br))
+  end
+  return
+end
+
+function deletearg!(b::Block, i)
+  deleteat!(arguments(b), i)
+  for c in blocks(b.ir), br in branches(c)
+    br.block == b.id && deleteat!(arguments(br), i)
+  end
+  return
 end
 
 block(ir::IR, i) = Block(ir, i)
@@ -134,11 +163,12 @@ function setindex!(ir::IR, x, i::Variable)
 end
 
 function Base.delete!(ir::IR, i::Variable)
+  ir[i] = nothing
   ir.defs[i.id] = (-1, -1)
   return ir
 end
 
-length(b::Block) = sum(x -> x[1] == b.id, b.ir.defs)
+length(b::Block) = count(x -> x[1] == b.id, b.ir.defs)
 
 function successors(b::Block)
   brs = basicblock(b).branches
@@ -147,21 +177,20 @@ function successors(b::Block)
   return succs
 end
 
-function iterate(b::Block, i = 1)
-  i > length(basicblock(b).stmts) && return
-  el = basicblock(b).stmts[i]
-  def = findfirst(==((b.id,i)), b.ir.defs)
-  def == nothing && return iterate(b, i+1)
-  def = Variable(def)
-  return ((def, el), i+1)
+predecessors(b::Block) = [c.id for c in blocks(b.ir) if b.id in successors(c)]
+
+Base.keys(b::Block) = first.(sort([Variable(i) => v for (i, v) in enumerate(b.ir.defs) if v[1] == b.id], by = x->x[2]))
+
+function iterate(b::Block, (ks, i) = (keys(b), 1))
+  i > length(ks) && return
+  return (ks[i]=>b.ir[ks[i]], (ks, i+1))
 end
 
-function iterate(ir::IR, (b, i) = (1,1))
-  b > length(ir.blocks) && return
-  r = iterate(block(ir, b), i)
-  r == nothing && return iterate(ir, (b+1, 1))
-  x, i = r
-  return x, (b, i)
+Base.keys(ir::IR) = first.(sort([Variable(i) => v for (i, v) in enumerate(ir.defs) if v != (-1, -1)], by = x->x[2]))
+
+function iterate(ir::IR, (ks, i) = (keys(ir), 1))
+  i > length(ks) && return
+  return (ks[i]=>ir[ks[i]], (ks, i+1))
 end
 
 applyex(f, x) = x
@@ -200,5 +229,3 @@ function insert!(ir::IR, i::Variable, x; after = false)
 end
 
 insertafter!(ir::IR, i::Variable, x) = insert!(ir, i, x, after=true)
-
-Base.keys(ir::IR) = first.(sort([Variable(i) => v for (i, v) in enumerate(ir.defs)], by = x->x[2]))

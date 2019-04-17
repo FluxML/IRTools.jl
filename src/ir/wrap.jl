@@ -168,7 +168,7 @@ function IR(ir::IRCode)
     end
   end
   ir2 = varmap(x -> defs[x], ir2)
-  return rewrite_phis!(ir2)
+  return ir2 |> rewrite_phis! |> IRTools.trivials!
 end
 
 IR(meta::Union{Meta,TypedMeta}) = IR(IRCode(meta))

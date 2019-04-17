@@ -8,12 +8,12 @@ function show(io::IO, b::Branch)
   if b == unreachable
     print(io, "unreachable")
   elseif isreturn(b)
-    print(io, "return $(b.args[1])")
+    print(io, "return $(repr(b.args[1]))")
   else
     print(io, "br $(b.block)")
     if !isempty(b.args)
       print(io, " (")
-      join(io, b.args, ", ")
+      join(io, repr.(b.args), ", ")
       print(io, ")")
     end
     b.condition != nothing && print(io, " unless $(b.condition)")
