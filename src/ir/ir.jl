@@ -174,10 +174,10 @@ function successors(b::Block)
   brs = basicblock(b).branches
   succs = Int[br.block for br in brs if br.block > 0]
   all(br -> br.condition != nothing, brs) && push!(succs, b.id+1)
-  return succs
+  return [block(b.ir, succ) for succ in succs]
 end
 
-predecessors(b::Block) = [c.id for c in blocks(b.ir) if b.id in successors(c)]
+predecessors(b::Block) = [c for c in blocks(b.ir) if b in successors(c)]
 
 Base.keys(b::Block) = first.(sort([Variable(i) => v for (i, v) in enumerate(b.ir.defs) if v[1] == b.id], by = x->x[2]))
 
@@ -228,4 +228,83 @@ function insert!(ir::IR, i::Variable, x; after = false)
   insert!(b, i+after, x)
 end
 
-insertafter!(ir::IR, i::Variable, x) = insert!(ir, i, x, after=true)
+insertafter!(ir, i, x) = insert!(ir, i, x, after=true)
+
+# Pipe
+
+struct Pipe
+  from::IR
+  to::IR
+  map::Dict{Any,Any}
+end
+
+Pipe(ir) = Pipe(ir, IR(ir.lines, ir.args), Dict())
+
+substitute!(p::Pipe, x, y) = p.map[x] = y
+substitute(p::Pipe, x) = get(p.map, x, x)
+substitute(p::Pipe) = x -> substitute(p, x)
+
+function pipestate(ir::IR)
+  ks = sort([Variable(i) => v for (i, v) in enumerate(ir.defs) if v != (-1, -1)], by = x->x[2])
+  [first.(filter(x -> x[2][1] == b, ks)) for b = 1:length(ir.blocks)]
+end
+
+function iterate(p::Pipe, (ks, b, i) = (pipestate(p.from), 1, 1))
+  if i == 1
+    for x in arguments(block(p.from, b))
+      y = var!(p.to)
+      push!(p.to.blocks[end].args, y)
+      substitute!(p, x, y)
+    end
+  end
+  if i > length(ks[b])
+    for br in branches(block(p.from, b))
+      push!(p.to.blocks[end].branches, map(substitute(p), br))
+    end
+    b == length(ks) && return
+    block!(p.to)
+    return iterate(p, (ks, b+1, 1))
+  end
+  v = ks[b][i]
+  st = p.from[v]
+  substitute!(p, v, push!(p, st))
+  (v, (ks, b, i+1))
+end
+
+finish(p::Pipe) = p.to
+
+islastdef(ir::IR, v::Variable) =
+  v.id == length(ir.defs) &&
+  ir.defs[v.id] == (length(ir.blocks), length(ir.blocks[end].stmts))
+
+getindex(p::Pipe, v) = p.to[substitute(p, v)]
+setindex!(p::Pipe, x, v) = p.to[substitute(p, v)] = x
+
+Base.push!(p::Pipe, x) = push!(p.to, prewalk(substitute(p), x))
+
+function Base.delete!(p::Pipe, v::Variable)
+  v′ = substitute(p, v)
+  delete!(p.map, v)
+  if islastdef(p.to, v′)
+    pop!(p.to.defs)
+    pop!(p.to.blocks[end].stmts)
+  else
+    delete!(p.to, v′)
+  end
+end
+
+function insert!(p::Pipe, v::Variable, x; after = false)
+  v′ = substitute(p, v)
+  x = prewalk(substitute(p), x)
+  if islastdef(p.to, v′) # we can make this case efficient by renumbering
+    if after
+      return push!(p.to, x)
+    else
+      p.map[v] = push!(p.to, p.to[v′])
+      p.to[v′] = x
+      return v′
+    end
+  else
+    return insert!(p.to, v′, x, after = after)
+  end
+end

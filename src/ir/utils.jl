@@ -7,9 +7,11 @@ walk(x::PhiNode, inner, outer) = outer(PhiNode(x.edges, inner.(x.values)))
 xcall(mod::Module, f::Symbol, args...) = Expr(:call, GlobalRef(mod, f), args...)
 xcall(f::Symbol, args...) = xcall(Base, f, args...)
 
+map(f, br::Branch) = Branch(br, condition = f(br.condition), args = f.(br.args))
+
 function map(f, b::BasicBlock)
   stmts = map(x -> Statement(x, f(x.expr)), b.stmts)
-  branches = map(br -> Branch(br, condition = f(br.condition), args = f.(br.args)), b.branches)
+  branches = map(br -> map(f, br), b.branches)
   BasicBlock(stmts, b.args, branches)
 end
 
@@ -34,6 +36,7 @@ function map!(f, ir::IR)
   return ir
 end
 
+walk(st::Statement, inner, outer) = Statement(st, inner(st.expr))
 walk(bb::BasicBlock, inner, outer) = map(inner, bb)
 walk(b::Block, inner, outer) = walk(basicblock(b), inner, outer)
 

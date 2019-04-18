@@ -168,7 +168,7 @@ function IR(ir::IRCode)
     end
   end
   ir2 = varmap(x -> defs[x], ir2)
-  return ir2 |> rewrite_phis! |> IRTools.trivials!
+  return ir2 |> rewrite_phis! |> IRTools.renumber
 end
 
 IR(meta::Union{Meta,TypedMeta}) = IR(IRCode(meta))
@@ -208,8 +208,8 @@ function IRCode(ir::IR)
     push!(index, length(stmts)+1)
   end
   ranges = StmtRange.([1, index[1:end-1]...], index.-1)
-  succs = IRTools.successors.(IRTools.blocks(ir))
-  preds = [filter(j -> i in succs[j], 1:length(succs)) for i = 1:length(succs)]
+  succs = map.(x -> x.id, IRTools.successors.(IRTools.blocks(ir)))
+  preds = map.(x -> x.id, IRTools.predecessors.(IRTools.blocks(ir)))
   bs = BasicBlock.(ranges, preds, succs)
   cfg = CFG(bs, index)
   flags = [0x00 for _ in stmts]

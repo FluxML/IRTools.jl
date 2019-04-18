@@ -1,4 +1,7 @@
-definitions(b::Block) = [Variable(i) for i = 1:length(b.ir.defs) if b.ir.defs[i][1] == b.id]
+function definitions(b::Block)
+  defs = [Variable(i) for i = 1:length(b.ir.defs) if b.ir.defs[i][1] == b.id]
+  append!(defs, arguments(b))
+end
 
 function usages(b::Block)
   uses = Set{Union{Variable,Argument}}()
@@ -9,15 +12,16 @@ function usages(b::Block)
   return uses
 end
 
-function trivials!(ir)
-  rename = Dict()
-  for (v, st) in ir
-    (!isexpr(st.expr) && isbits(st.expr)) || continue
-    rename[v] = st.expr
-    delete!(ir, v)
+function renumber(ir)
+  p = Pipe(ir)
+  for v in p
+    ex = p[v].expr
+    if isbits(ex) # Trivial expressions can be inlined
+      delete!(p, v)
+      substitute!(p, v, ex)
+    end
   end
-  prewalk!(x -> get(rename, x, x), ir)
-  return ir
+  return finish(p)
 end
 
 function merge_returns!(ir)
@@ -38,30 +42,41 @@ function merge_entry!(ir)
 end
 
 function allspats!(ir::IR)
-  for b in reverse(blocks(ir)[2:end])
-    defs = vcat(definitions(b), arguments(b))
+  worklist = blocks(ir)
+  spats = Dict(b => Dict() for b in blocks(ir))
+  while !isempty(worklist)
+    b = pop!(worklist)
+    b.id == 1 && continue
+    defs = definitions(b)
     uses = usages(b)
-    rename = Dict()
     for v in setdiff(uses, defs)
-      rename[v] = argument!(b, v)
+      haskey(spats[b], v) && continue
+      spats[b][v] = argument!(b, v)
+      for c in predecessors(b)
+        c in worklist || push!(worklist, c)
+      end
     end
-    ir.blocks[b.id] = prewalk(x -> get(rename, x, x), ir.blocks[b.id])
+    ir.blocks[b.id] = prewalk(x -> get(spats[b], x, x), ir.blocks[b.id])
   end
   return ir
 end
 
-allequal() = true
-allequal(x) = true
-allequal(xs...) = reduce(==, xs)
-
 function trimspats!(ir::IR)
-  for b in blocks(ir)
+  worklist = blocks(ir)
+  while !isempty(worklist)
+    b = popfirst!(worklist)
     isempty(arguments(b)) && continue
     brs = filter(br -> br.block == b.id, [br for a in blocks(ir) for br in branches(a)])
-    del = allequal.(arguments.(brs)...)
+    moot(a, in) = length(setdiff(in, (a,))) == 1
+    del = map(moot, arguments(b), zip(arguments.(brs)...))
     rename = Dict(zip(arguments(b)[del], arguments(brs[1])[del]))
-    ir.blocks[b.id] = prewalk(x -> get(rename, x, x), ir.blocks[b.id])
-    deletearg!(b, del)
+    if !isempty(rename)
+      prewalk!(x -> get(rename, x, x), ir)
+      deletearg!(b, del)
+      for c in successors(b)
+        c in worklist || push!(worklist, c)
+      end
+    end
   end
   return ir
 end
