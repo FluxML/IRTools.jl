@@ -98,6 +98,8 @@ function explicitbranch!(b::Block)
   end
 end
 
+explicitbranch!(ir::IR) = foreach(explicitbranch!, blocks(ir)[2:end])
+
 function argument!(b::Block, value = nothing)
   arg = var!(b.ir)
   push!(arguments(b), arg)
@@ -229,6 +231,23 @@ function insert!(ir::IR, i::Variable, x; after = false)
 end
 
 insertafter!(ir, i, x) = insert!(ir, i, x, after=true)
+
+function Base.permute!(ir::IR, perm::AbstractVector)
+  explicitbranch!(ir)
+  permute!(ir.blocks, perm)
+  iperm = invperm(perm)
+  for v = 1:length(ir.defs)
+    b, i = ir.defs[v]
+    b == -1 && continue
+    ir.defs[v] = (iperm[b], i)
+  end
+  for b in blocks(ir), i = 1:length(branches(b))
+    branches(b)[i].block > 0 || continue
+    br = branches(b)[i]
+    branches(b)[i] = Branch(br, block = iperm[br.block])
+  end
+  return ir
+end
 
 # Pipe
 

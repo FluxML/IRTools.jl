@@ -12,6 +12,39 @@ function usages(b::Block)
   return uses
 end
 
+function dominators(ir)
+  doms = Dict(b => Set(blocks(ir)) for b in blocks(ir))
+  worklist = blocks(ir)
+  while !isempty(worklist)
+    b = popfirst!(worklist)
+    ds = isempty(predecessors(b)) ? Set([b]) :
+      push!(intersect([doms[c] for c in predecessors(b)]...), b)
+    if ds != doms[b]
+      doms[b] = ds
+      for c in successors(b)
+        c in worklist || push!(worklist, c)
+      end
+    end
+  end
+  return doms
+end
+
+function domtree(ir, start = 1)
+  doms = dominators(ir)
+  doms = Dict(b => filter(c -> b != c && b in doms[c], blocks(ir)) for b in blocks(ir))
+  children(b) = filter(c -> !(c in union(map(c -> doms[c], doms[b])...)), doms[b])
+  tree(b) = Pair{Int,Any}(b.id,tree.(children(b)))
+  tree(block(ir, start))
+end
+
+function domorder(ir, start = 1)
+  tree = domtree(ir, start)
+  flatten((b,cs)) = vcat(b, flatten.(cs)...)
+  flatten(tree)
+end
+
+domorder!(ir::IR, start = 1) = permute!(ir, domorder(ir, start))
+
 function renumber(ir)
   p = Pipe(ir)
   for v in p
