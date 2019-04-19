@@ -61,11 +61,11 @@ function merge_returns!(ir)
   bs = [b for b in blocks(ir) if isreturn(b)]
   length(bs) == 1 && bs[1] == blocks(ir)[end] && return ir
   block!(ir)
+  ret = argument!(blocks(ir)[end])
+  return!(ir, ret)
   for b in bs
     branches(b)[end] = branch(length(ir.blocks), arguments(branches(b)[end])[1])
   end
-  ret = argument!(blocks(ir)[end])
-  return!(ir, ret)
   return ir
 end
 
@@ -100,6 +100,7 @@ function trimspats!(ir::IR)
     b = popfirst!(worklist)
     isempty(arguments(b)) && continue
     brs = filter(br -> br.block == b.id, [br for a in blocks(ir) for br in branches(a)])
+    isempty(brs) && continue
     moot(a, in) = length(setdiff(in, (a,))) == 1
     del = map(moot, arguments(b), zip(arguments.(brs)...))
     rename = Dict(zip(arguments(b)[del], arguments(brs[1])[del]))
@@ -123,3 +124,5 @@ function log!(ir, msg)
   pushfirst!(ir, xcall(Core, :println, msg))
   return ir
 end
+
+pis!(ir::IR) = ir

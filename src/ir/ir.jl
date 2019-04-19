@@ -92,10 +92,12 @@ arguments(b::Block) = arguments(basicblock(b))
 isreturn(b::Block) = any(isreturn, branches(b))
 
 function explicitbranch!(b::Block)
+  b.id == 1 && return
   a = block(b.ir, b.id-1)
   if all(isconditional, branches(a))
     branch!(a, b.id)
   end
+  return
 end
 
 explicitbranch!(ir::IR) = foreach(explicitbranch!, blocks(ir)[2:end])
@@ -136,6 +138,7 @@ function blockidx(ir::IR, x::Variable)
 end
 
 getindex(b::Block, i::Integer) = basicblock(b).stmts[i]
+getindex(b::Block, i::Variable) = b.ir[i]
 setindex!(b::Block, x::Statement, i::Integer) = (basicblock(b).stmts[i] = x)
 setindex!(b::Block, x, i::Integer) = (b[i] = Statement(b[i], x))
 
@@ -251,13 +254,14 @@ end
 
 # Pipe
 
-struct Pipe
+mutable struct Pipe
   from::IR
   to::IR
   map::Dict{Any,Any}
+  var::Int
 end
 
-Pipe(ir) = Pipe(ir, IR(ir.lines, ir.args), Dict())
+Pipe(ir) = Pipe(ir, IR(copy(ir.lines), copy(ir.args)), Dict(), 0)
 
 substitute!(p::Pipe, x, y) = p.map[x] = y
 substitute(p::Pipe, x) = get(p.map, x, x)
@@ -297,7 +301,7 @@ islastdef(ir::IR, v::Variable) =
   ir.defs[v.id] == (length(ir.blocks), length(ir.blocks[end].stmts))
 
 getindex(p::Pipe, v) = p.to[substitute(p, v)]
-setindex!(p::Pipe, x, v) = p.to[substitute(p, v)] = x
+setindex!(p::Pipe, x, v) = p.to[substitute(p, v)] = prewalk(substitute(p), x)
 
 Base.push!(p::Pipe, x) = push!(p.to, prewalk(substitute(p), x))
 
@@ -321,7 +325,9 @@ function insert!(p::Pipe, v::Variable, x; after = false)
     else
       p.map[v] = push!(p.to, p.to[v′])
       p.to[v′] = x
-      return v′
+      w = Variable(-(p.var += 1))
+      p.map[w] = v′
+      return w
     end
   else
     return insert!(p.to, v′, x, after = after)
