@@ -88,6 +88,7 @@ function update!(meta, ir::Core.Compiler.IRCode)
   meta.code.inferred = false
   meta.code.ssavaluetypes = length(meta.code.code)
   slots!(meta.code)
+  fill!(meta.code.slotflags, 0)
   return meta.code
 end
 

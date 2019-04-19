@@ -45,6 +45,23 @@ end
 
 domorder!(ir::IR, start = 1) = permute!(ir, domorder(ir, start))
 
+function verify(ir::IR)
+  @assert domorder(ir) == 1:length(ir.blocks) "Blocks are not in domtree order."
+  doms = dominators(ir)
+  # TODO check definitions within a block
+  for (b, ds) in doms
+    defs = union(definitions.(ds)...)
+    for x in setdiff(usages(b), defs)
+      if x isa Argument
+        @assert x.id <= length(ir.args) "Used argument $x of $(length(ir.args))"
+      else
+        error("Variable $x in block $(b.id) is not defined.")
+      end
+    end
+  end
+  return
+end
+
 function renumber(ir)
   p = Pipe(ir)
   for v in p
