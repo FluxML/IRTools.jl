@@ -70,9 +70,17 @@ IR(lines::Vector{LineInfoNode},args) = IR([],[BasicBlock()],lines,args)
 length(ir::IR) = sum(x -> x != (-1, -1), ir.defs)
 
 function block!(ir::IR, i = length(blocks(ir))+1)
-  @assert i == length(blocks(ir))+1 # not implemented
   insert!(ir.blocks, i, BasicBlock())
-  return ir
+  if i != length(blocks(ir))
+    for b in blocks(ir), i = 1:length(branches(b))
+      br = branches(b)[i]
+      br.block >= i && (branches(b)[i] = Branch(br, block = br.block+1))
+    end
+  end
+  for (ii, (b, j)) = enumerate(ir.defs)
+    b >= i && (ir.defs[ii] = (b+1, j))
+  end
+  return block(ir, i)
 end
 
 function var!(ir)

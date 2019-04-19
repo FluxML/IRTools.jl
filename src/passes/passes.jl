@@ -70,7 +70,8 @@ function merge_returns!(ir)
 end
 
 function merge_entry!(ir)
-  @assert isempty(predecessors(block(ir, 1)))
+  isempty(predecessors(block(ir, 1))) && return ir
+  block!(ir, 1)
   return ir
 end
 
