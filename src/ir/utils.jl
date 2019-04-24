@@ -67,3 +67,9 @@ function exprtype(ir::IR, x::Variable)
     widenconst(ir.blocks[b].argtypes[-i])
   end
 end
+
+function exprline(ir::IR, x::Variable)
+  b, i = get(ir.defs, x.id, (-1, -1))
+  i > 0 || return
+  get(ir.lines, ir[x].line, nothing)
+end

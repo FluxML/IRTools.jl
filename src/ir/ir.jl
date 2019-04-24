@@ -248,6 +248,8 @@ end
 
 insertafter!(ir, i, x) = insert!(ir, i, x, after=true)
 
+Base.empty(ir::IR) = IR(copy(ir.lines), [])
+
 function Base.permute!(ir::IR, perm::AbstractVector)
   explicitbranch!(ir)
   permute!(ir.blocks, perm)
