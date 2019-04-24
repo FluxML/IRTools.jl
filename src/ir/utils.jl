@@ -1,8 +1,9 @@
 import Base: map, map!
-import Core.Compiler: PhiNode, ssamap, userefs
+import Core.Compiler: PhiNode, PiNode, ssamap, userefs
 import MacroTools: walk
 
 walk(x::PhiNode, inner, outer) = outer(PhiNode(x.edges, inner.(x.values)))
+walk(x::PiNode, inner, outer) = outer(PiNode(inner(x.val), x.typ))
 
 xcall(mod::Module, f::Symbol, args...) = Expr(:call, GlobalRef(mod, f), args...)
 xcall(f::Symbol, args...) = xcall(Base, f, args...)

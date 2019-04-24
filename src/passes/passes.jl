@@ -143,4 +143,11 @@ function log!(ir, msg)
   return ir
 end
 
-pis!(ir::IR) = ir
+function pis!(ir::IR)
+  for (v, st) in ir
+    ex = st.expr
+    ex isa PiNode || continue
+    ir[v] = xcall(Core, :typeassert, ex.val, ex.typ)
+  end
+  return ir
+end

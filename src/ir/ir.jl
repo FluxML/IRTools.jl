@@ -46,6 +46,8 @@ Statement(x; type = Any, line = 0) =
 Statement(x::Statement, expr = x.expr; type = x.type, line = x.line) =
   Statement(expr, type, line)
 
+const stmt = Statement
+
 struct BasicBlock
   stmts::Vector{Statement}
   args::Vector{Any}
@@ -331,7 +333,7 @@ function insert!(p::Pipe, v::Variable, x; after = false)
       return push!(p.to, x)
     else
       p.map[v] = push!(p.to, p.to[v′])
-      p.to[v′] = x
+      p.to[v′] = Statement(x)
       w = Variable(-(p.var += 1))
       p.map[w] = v′
       return w
