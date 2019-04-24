@@ -37,20 +37,22 @@ function domtree(ir, start = 1)
   tree(block(ir, start))
 end
 
-function domorder(ir, start = 1)
+function domorder(ir, start = 1; full = false)
   tree = domtree(ir, start)
   flatten((b,cs)) = vcat(b, flatten.(cs)...)
   tree = flatten(tree)
-  for i = 1:length(ir.blocks)
-    i in tree || push!(tree, i)
+  if full
+    for b = 1:length(ir.blocks)
+      b in tree || push!(tree, b)
+    end
   end
   return tree
 end
 
-domorder!(ir::IR, start = 1) = permute!(ir, domorder(ir, start))
+domorder!(ir::IR, start = 1) = permute!(ir, domorder(ir, start, full = true))
 
 function verify(ir::IR)
-  @assert domorder(ir) == 1:length(ir.blocks) "Blocks are not in domtree order."
+  @assert issorted(domorder(ir)) "Blocks are not in domtree order."
   doms = dominators(ir)
   # TODO check definitions within a block
   for (b, ds) in doms
