@@ -30,6 +30,9 @@ Branch(br::Branch; condition = br.condition,
 isreturn(b::Branch) = b.block == 0 && length(b.args) == 1
 isconditional(b::Branch) = b.condition != nothing
 
+Base.:(==)(a::Branch, b::Branch) =
+  (a.condition, a.block, a.args) == (b.condition, b.block, b.args)
+
 arguments(b::Branch) = b.args
 
 const unreachable = Branch(nothing, 0, [])

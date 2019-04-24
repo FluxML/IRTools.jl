@@ -40,7 +40,11 @@ end
 function domorder(ir, start = 1)
   tree = domtree(ir, start)
   flatten((b,cs)) = vcat(b, flatten.(cs)...)
-  flatten(tree)
+  tree = flatten(tree)
+  for i = 1:length(ir.blocks)
+    i in tree || push!(tree, i)
+  end
+  return tree
 end
 
 domorder!(ir::IR, start = 1) = permute!(ir, domorder(ir, start))
