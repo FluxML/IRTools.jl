@@ -269,6 +269,10 @@ end
 
 # Pipe
 
+struct NewVariable
+  id::Int
+end
+
 mutable struct Pipe
   from::IR
   to::IR
@@ -278,7 +282,10 @@ end
 
 Pipe(ir) = Pipe(ir, IR(copy(ir.lines), copy(ir.args)), Dict(), 0)
 
+var!(p::Pipe) = NewVariable(p.var += 1)
+
 substitute!(p::Pipe, x, y) = p.map[x] = y
+substitute(p::Pipe, x::Union{Variable,NewVariable}) = p.map[x]
 substitute(p::Pipe, x) = get(p.map, x, x)
 substitute(p::Pipe) = x -> substitute(p, x)
 
@@ -304,8 +311,8 @@ function iterate(p::Pipe, (ks, b, i) = (pipestate(p.from), 1, 1))
   end
   v = ks[b][i]
   st = p.from[v]
-  substitute!(p, v, push!(p, st))
-  (v, (ks, b, i+1))
+  substitute!(p, v, push!(p.to, prewalk(substitute(p), st)))
+  ((v, st), (ks, b, i+1))
 end
 
 finish(p::Pipe) = p.to
@@ -314,12 +321,15 @@ islastdef(ir::IR, v::Variable) =
   v.id == length(ir.defs) &&
   ir.defs[v.id] == (length(ir.blocks), length(ir.blocks[end].stmts))
 
-getindex(p::Pipe, v) = p.to[substitute(p, v)]
 setindex!(p::Pipe, x, v) = p.to[substitute(p, v)] = prewalk(substitute(p), x)
 
-Base.push!(p::Pipe, x) = push!(p.to, prewalk(substitute(p), x))
+function Base.push!(p::Pipe, x)
+  tmp = var!(p)
+  substitute!(p, tmp, push!(p.to, prewalk(substitute(p), x)))
+  return tmp
+end
 
-function Base.delete!(p::Pipe, v::Variable)
+function Base.delete!(p::Pipe, v)
   v′ = substitute(p, v)
   delete!(p.map, v)
   if islastdef(p.to, v′)
@@ -330,20 +340,20 @@ function Base.delete!(p::Pipe, v::Variable)
   end
 end
 
-function insert!(p::Pipe, v::Variable, x; after = false)
+function insert!(p::Pipe, v, x; after = false)
   v′ = substitute(p, v)
   x = prewalk(substitute(p), x)
+  tmp = var!(p)
   if islastdef(p.to, v′) # we can make this case efficient by renumbering
     if after
-      return push!(p.to, x)
+      substitute!(p, tmp, push!(p.to, x))
     else
-      p.map[v] = push!(p.to, p.to[v′])
+      substitute!(p, v, push!(p.to, p.to[v′]))
       p.to[v′] = Statement(x)
-      w = Variable(-(p.var += 1))
-      p.map[w] = v′
-      return w
+      substitute!(p, tmp, v′)
     end
   else
-    return insert!(p.to, v′, x, after = after)
+    substitute!(p, tmp, insert!(p.to, v′, x, after = after))
   end
+  return tmp
 end

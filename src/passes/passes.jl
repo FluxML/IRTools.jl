@@ -68,8 +68,8 @@ end
 
 function renumber(ir)
   p = Pipe(ir)
-  for v in p
-    ex = p[v].expr
+  for (v, st) in p
+    ex = st.expr
     if isbits(ex) # Trivial expressions can be inlined
       delete!(p, v)
       substitute!(p, v, ex)
