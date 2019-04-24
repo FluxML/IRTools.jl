@@ -200,6 +200,8 @@ function IRCode(ir::IR)
       if IRTools.isreturn(br)
         x = get(defs, br.args[1], br.args[1]) |> unvars
         push!(stmts, ReturnNode(x))
+      elseif br == unreachable
+        push!(stmts, ReturnNode())
       elseif br.condition == nothing
         push!(stmts, GotoNode(br.block))
       else
