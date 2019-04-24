@@ -12,7 +12,7 @@ map(f, br::Branch) = Branch(br, condition = f(br.condition), args = f.(br.args))
 function map(f, b::BasicBlock)
   stmts = map(x -> Statement(x, f(x.expr)), b.stmts)
   branches = map(br -> map(f, br), b.branches)
-  BasicBlock(stmts, b.args, branches)
+  BasicBlock(stmts, b.args, b.argtypes, branches)
 end
 
 function map!(f, b::BasicBlock)
@@ -50,8 +50,17 @@ varmap(f, x) = prewalk(x -> x isa Variable ? f(x) : x, x)
 argmap(f, x) = prewalk(x -> x isa Argument ? f(x) : x, x)
 
 exprtype(ir::IR, x::Argument) = widenconst(ir.args[x.id])
-exprtype(ir::IR, x::Variable) = widenconst(ir[x].type) # TODO: spats
 exprtype(ir::IR, x::GlobalRef) = isconst(x.mod, x.name) ? Typeof(getfield(x.mod, x.name)) : Any
 exprtype(ir::IR, x::QuoteNode) = Typeof(x.value)
 exprtype(ir::IR, x::Expr) = error(x)
 exprtype(ir::IR, x) = Typeof(x)
+
+function exprtype(ir::IR, x::Variable)
+  b, i = get(ir.defs, x.id, (-1, -1))
+  b == -1 && error("No such variable $x")
+  if i > 0
+    widenconst(ir[x].type)
+  else
+    widenconst(ir.blocks[b].argtypes[-i])
+  end
+end

@@ -145,11 +145,14 @@ function rewrite_phis!(ir::IR)
     ex = st.expr
     ex isa PhiNode || continue
     to, = IRTools.blockidx(ir, v)
-    push!(IRTools.basicblock(to).args, v)
+    bb = IRTools.basicblock(to)
+    push!(bb.args, v)
+    push!(bb.argtypes, st.type)
     for (from, arg) in zip(ex.edges, ex.values), br in branches_for!(ir, from=>to.id)
       push!(br.args, ex[from])
     end
     delete!(ir, v)
+    ir.defs[v.id] = (to.id, -length(bb.args))
   end
   return ir
 end

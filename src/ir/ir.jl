@@ -49,10 +49,11 @@ Statement(x::Statement, expr = x.expr; type = x.type, line = x.line) =
 struct BasicBlock
   stmts::Vector{Statement}
   args::Vector{Any}
+  argtypes::Vector{Any}
   branches::Vector{Branch}
 end
 
-BasicBlock(stmts = []) = BasicBlock(stmts, [], [])
+BasicBlock(stmts = []) = BasicBlock(stmts, [], [], Branch[])
 
 branches(bb::BasicBlock) = bb.branches
 arguments(bb::BasicBlock) = bb.args
@@ -67,7 +68,7 @@ end
 IR() = IR([],[BasicBlock()],[],[])
 IR(lines::Vector{LineInfoNode},args) = IR([],[BasicBlock()],lines,args)
 
-length(ir::IR) = sum(x -> x != (-1, -1), ir.defs)
+length(ir::IR) = sum(x -> x[2] > 0, ir.defs)
 
 function block!(ir::IR, i = length(blocks(ir))+1)
   insert!(ir.blocks, i, BasicBlock())
@@ -81,11 +82,6 @@ function block!(ir::IR, i = length(blocks(ir))+1)
     b >= i && (ir.defs[ii] = (b+1, j))
   end
   return block(ir, i)
-end
-
-function var!(ir)
-  push!(ir.defs, (-1, -1))
-  return Variable(length(ir.defs))
 end
 
 struct Block
@@ -110,12 +106,16 @@ end
 
 explicitbranch!(ir::IR) = foreach(explicitbranch!, blocks(ir)[2:end])
 
-function argument!(b::Block, value = nothing)
-  arg = var!(b.ir)
+function argument!(b::Block, value = nothing, type = Any; insert = true)
+  push!(b.ir.defs, (b.id, -(length(basicblock(b).args)+1)))
+  arg = var(length(b.ir.defs))
   push!(arguments(b), arg)
-  explicitbranch!(b)
-  for c in blocks(b.ir), br in branches(c)
-    br.block == b.id && push!(arguments(br), value)
+  push!(basicblock(b).argtypes, type)
+  if insert
+    explicitbranch!(b)
+    for c in blocks(b.ir), br in branches(c)
+      br.block == b.id && push!(arguments(br), value)
+    end
   end
   return arg
 end
@@ -141,7 +141,7 @@ blocks(ir::IR) = [block(ir, i) for i = 1:length(ir.blocks)]
 
 function blockidx(ir::IR, x::Variable)
   b, i = get(ir.defs, x.id, (-1, -1))
-  b == -1 && error("No such variable $x")
+  i > 0 || error("No such variable $x")
   block(ir, b), i
 end
 
@@ -192,14 +192,14 @@ end
 
 predecessors(b::Block) = [c for c in blocks(b.ir) if b in successors(c)]
 
-Base.keys(b::Block) = first.(sort([Variable(i) => v for (i, v) in enumerate(b.ir.defs) if v[1] == b.id], by = x->x[2]))
+Base.keys(b::Block) = first.(sort([Variable(i) => v for (i, v) in enumerate(b.ir.defs) if v[1] == b.id && v[2] > 0], by = x->x[2]))
 
 function iterate(b::Block, (ks, i) = (keys(b), 1))
   i > length(ks) && return
   return (ks[i]=>b.ir[ks[i]], (ks, i+1))
 end
 
-Base.keys(ir::IR) = first.(sort([Variable(i) => v for (i, v) in enumerate(ir.defs) if v != (-1, -1)], by = x->x[2]))
+Base.keys(ir::IR) = first.(sort([Variable(i) => v for (i, v) in enumerate(ir.defs) if v[2] > 0], by = x->x[2]))
 
 function iterate(ir::IR, (ks, i) = (keys(ir), 1))
   i > length(ks) && return
@@ -276,15 +276,14 @@ substitute(p::Pipe, x) = get(p.map, x, x)
 substitute(p::Pipe) = x -> substitute(p, x)
 
 function pipestate(ir::IR)
-  ks = sort([Variable(i) => v for (i, v) in enumerate(ir.defs) if v != (-1, -1)], by = x->x[2])
+  ks = sort([Variable(i) => v for (i, v) in enumerate(ir.defs) if v[2] > 0], by = x->x[2])
   [first.(filter(x -> x[2][1] == b, ks)) for b = 1:length(ir.blocks)]
 end
 
 function iterate(p::Pipe, (ks, b, i) = (pipestate(p.from), 1, 1))
   if i == 1
-    for x in arguments(block(p.from, b))
-      y = var!(p.to)
-      push!(p.to.blocks[end].args, y)
+    for (x, T) in zip(p.from.blocks[b].args, p.from.blocks[b].argtypes)
+      y = argument!(blocks(p.to)[end], nothing, T, insert = false)
       substitute!(p, x, y)
     end
   end

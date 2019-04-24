@@ -21,20 +21,27 @@ function show(io::IO, b::Branch)
 end
 
 function show(io::IO, b::Block)
+  bb = basicblock(b)
   print(io, b.id, ":")
-  if !isempty(basicblock(b).args)
+  if !isempty(bb.args)
     print(io, " (")
-    join(io, basicblock(b).args, ", ")
+    for i = 1:length(bb.args)
+      print(io, bb.args[i])
+      bb.argtypes[i] != Any && print(io, " :: ", bb.argtypes[i])
+      i != length(bb.args) && print(io, ", ")
+    end
     print(io, ")")
   end
   println(io)
   for (x, st) in b
     print(io, "  ")
     x == nothing || print(io, string("%", x.id), " = ")
-    st.expr == nothing ? println(io, "nothing") :
-      println(io, st.expr)
+    st.expr == nothing ? print(io, "nothing") :
+      print(io, st.expr)
+    st.type == Any || print(io, " :: ", st.type)
+    println(io)
   end
-  for br in basicblock(b).branches
+  for br in bb.branches
     println(io, "  ", br)
   end
 end
