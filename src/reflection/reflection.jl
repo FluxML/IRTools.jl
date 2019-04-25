@@ -20,7 +20,11 @@ end
 
 define_typeinf_code2() = isprecompiling() ||
 @eval Core.Compiler function typeinf_code2(method::Method, @nospecialize(atypes), sparams::SimpleVector, run_optimizer::Bool, params::Params)
-    code = code_for_method(method, atypes, sparams, params.world)
+    if $(VERSION >= v"1.2")
+      code = specialize_method(method, atypes, sparams)
+    else
+      code = code_for_method(method, atypes, sparams, params.world)
+    end
     code === nothing && return (nothing, Any)
     ccall(:jl_typeinf_begin, Cvoid, ())
     result = InferenceResult(code)
@@ -81,8 +85,13 @@ function meta(T; world = worldcounter())
   length(_methods) == 0 && return nothing
   type_signature, sps, method = last(_methods)
   sps = svec(map(untvar, sps)...)
-  mi = Core.Compiler.code_for_method(method, type_signature, sps, world, false)
-  ci = Base.isgenerated(mi) ? Core.Compiler.get_staged(mi) : Base.uncompressed_ast(mi)
+  @static if VERSION >= v"1.2"
+    mi = Core.Compiler.specialize_method(method, type_signature, sps)
+    ci = Base.isgenerated(mi) ? Core.Compiler.get_staged(mi) : Base.uncompressed_ast(method)
+  else
+    mi = Core.Compiler.code_for_method(method, type_signature, sps, world, false)
+    ci = Base.isgenerated(mi) ? Core.Compiler.get_staged(mi) : Base.uncompressed_ast(mi)
+  end
   ci.method_for_inference_limit_heuristics = method
   Base.Meta.partially_inline!(ci.code, [], method.sig, Any[sps...], 0, 0, :propagate)
   Meta(method, ci, method.nargs, sps)
