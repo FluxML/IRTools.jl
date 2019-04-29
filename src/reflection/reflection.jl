@@ -20,7 +20,7 @@ end
 
 define_typeinf_code2() = isprecompiling() ||
 @eval Core.Compiler function typeinf_code2(method::Method, @nospecialize(atypes), sparams::SimpleVector, run_optimizer::Bool, params::Params)
-    if $(VERSION >= v"1.2")
+    if $(VERSION >= v"1.2-")
       code = specialize_method(method, atypes, sparams)
     else
       code = code_for_method(method, atypes, sparams, params.world)
@@ -85,7 +85,7 @@ function meta(T; world = worldcounter())
   length(_methods) == 0 && return nothing
   type_signature, sps, method = last(_methods)
   sps = svec(map(untvar, sps)...)
-  @static if VERSION >= v"1.2"
+  @static if VERSION >= v"1.2-"
     mi = Core.Compiler.specialize_method(method, type_signature, sps)
     ci = Base.isgenerated(mi) ? Core.Compiler.get_staged(mi) : Base.uncompressed_ast(method)
   else
