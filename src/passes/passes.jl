@@ -125,9 +125,9 @@ function trimspats!(ir::IR)
     isempty(arguments(b)) && continue
     brs = filter(br -> br.block == b.id, [br for a in blocks(ir) for br in branches(a)])
     isempty(brs) && continue
-    moot(a, in) = length(setdiff(in, (a,))) == 1
-    del = map(moot, arguments(b), zip(arguments.(brs)...))
-    rename = Dict(zip(arguments(b)[del], arguments(brs[1])[del]))
+    inputs = [setdiff(in, (a,)) for (a, in) in zip(arguments(b), zip(arguments.(brs)...))]
+    del = findall(x -> length(x) == 1, inputs)
+    rename = Dict(zip(arguments(b)[del], first.(inputs[del])))
     if !isempty(rename)
       prewalk!(x -> get(rename, x, x), ir)
       deletearg!(b, del)
