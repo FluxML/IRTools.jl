@@ -6,6 +6,7 @@ Base.show(io::IO, s::Slot) = print(io, "@", s.id)
 
 spatslot(b, i) = Slot(Symbol(:spat_, b, :_, i))
 
+# TODO: handle undef arguments properly.
 function slots!(ir::IR)
   slots = Dict()
   for b in blocks(ir)

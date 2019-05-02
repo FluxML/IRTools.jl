@@ -5,6 +5,9 @@ import Base: push!, insert!, getindex, setindex!, iterate, length
 # (1) be more robust to Base IR changes, and
 # (2) make sure that mistakes/bugs do not cause bad LLVM IR.
 
+struct Undefined end
+const undef = Undefined()
+
 struct Variable
   id::Int
 end

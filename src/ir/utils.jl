@@ -2,7 +2,11 @@ import Base: map, map!
 import Core.Compiler: PhiNode, PiNode, ssamap, userefs
 import MacroTools: walk
 
-walk(x::PhiNode, inner, outer) = outer(PhiNode(x.edges, inner.(x.values)))
+walk(x::PhiNode, inner, outer) =
+  outer(PhiNode(x.edges,
+                [inner(isassigned(x.values, i) ? x.values[i] : undef)
+                 for i in 1:length(x.values)]))
+
 walk(x::PiNode, inner, outer) = outer(PiNode(inner(x.val), x.typ))
 
 xcall(mod::Module, f::Symbol, args...) = Expr(:call, GlobalRef(mod, f), args...)
