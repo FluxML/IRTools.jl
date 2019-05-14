@@ -88,7 +88,7 @@ function merge_returns!(ir)
   return ir
 end
 
-function allspats!(ir::IR)
+function expand!(ir::IR)
   worklist = blocks(ir)
   spats = Dict(b => Dict() for b in blocks(ir))
   while !isempty(worklist)
@@ -108,7 +108,7 @@ function allspats!(ir::IR)
   return ir
 end
 
-function trimspats!(ir::IR)
+function prune!(ir::IR)
   worklist = blocks(ir)
   while !isempty(worklist)
     b = popfirst!(worklist)
@@ -151,7 +151,7 @@ function ssa!(ir::IR)
     for (v, st) in b
       ex = st.expr
       if isexpr(ex, :(=))
-        defs[b.id][ex.args[1]] = ex.args[2]
+        defs[b.id][ex.args[1]] = rename(ex.args[2])
         delete!(ir, v)
       else
         ir[v] = rename(ex)
