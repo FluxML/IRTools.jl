@@ -116,6 +116,18 @@ function invoke_meta(T; world)
   return Meta(m.method, m.code, m.nargs+2, m.sparams)
 end
 
+macro meta(ex)
+  isexpr(ex, :call) || error("@meta f(args...)")
+  f, args = ex.args[1], ex.args[2:end]
+  :(meta(typesof($(esc.((f, args...))...))))
+end
+
+macro typed_meta(ex)
+  isexpr(ex, :call) || error("@meta f(args...)")
+  f, args = ex.args[1], ex.args[2:end]
+  :(typed_meta(typesof($(esc.((f, args...))...))))
+end
+
 function code_ir(f, T)
   m = meta(Tuple{Typeof(f),T.parameters...})
   return IR(m)

@@ -98,7 +98,7 @@ sparams(opt::OptimizationState) = VERSION > v"1.2-" ? Any[t.val for t in opt.spt
 
 using ..IRTools
 import ..IRTools: IR, Variable, Statement, Branch, TypedMeta, Meta, block!,
-  unreachable, varmap, argument!
+  unreachable, varmap, argument!, branch!, return!
 
 vars(ex) = prewalk(x -> x isa SSAValue ? Variable(x.id) : x, ex)
 
@@ -175,8 +175,6 @@ function IR(ir::IRCode)
   return ir2 |> IRTools.renumber
 end
 
-IR(meta::Union{Meta,TypedMeta}) = IR(IRCode(meta))
-
 unvars(ex) = prewalk(x -> x isa Variable ? SSAValue(x.id) : x, ex)
 
 function IRCode(ir::IR)
@@ -222,6 +220,64 @@ function IRCode(ir::IR)
   flags = [0x00 for _ in stmts]
   sps = VERSION > v"1.2-" ? [] : Core.svec()
   IRCode(stmts, types, lines, flags, cfg, ir.lines, ir.blocks[1].argtypes, [], sps)
+end
+
+function blockstarts(ci::CodeInfo)
+  bs = Int[]
+  terminator = false
+  for i = 1:length(ci.code)
+    ex = ci.code[i]
+    if isexpr(ex, :gotoifnot)
+      push!(bs, ex.args[2])
+      terminator = true
+    elseif isexpr(ex, GotoNode, :return)
+      ex isa GotoNode && push!(bs, ex.label)
+      i < length(ci.code) && push!(bs, i+1)
+      terminator = false
+    elseif terminator
+      push!(bs, i)
+      terminator = false
+    end
+  end
+  return sort(unique(bs))
+end
+
+function IR(ci::CodeInfo, nargs::Integer)
+  bs = blockstarts(ci)
+  ir = IR([ci.linetable...])
+  _rename = Dict()
+  rename(ex) = prewalk(ex) do x
+    x isa Core.SlotNumber && return IRTools.Slot(ci.slotnames[x.id])
+    return get(_rename, x, x)
+  end
+  for i = 1:nargs
+    _rename[Core.SlotNumber(i)] = argument!(ir)
+  end
+  for i = 1:length(ci.code)
+    i in bs && block!(ir)
+    ex = ci.code[i]
+    if ex isa Core.NewvarNode
+      continue
+    elseif isexpr(ex, GotoNode)
+      branch!(ir, findfirst(==(ex.label), bs)+1)
+    elseif isexpr(ex, :gotoifnot)
+      branch!(ir, findfirst(==(ex.args[2]), bs)+1,
+              unless = rename(ex.args[1]))
+    elseif isexpr(ex, :return)
+      return!(ir, rename(ex.args[1]))
+    else
+      _rename[Core.SSAValue(i)] = push!(ir, rename(ex))
+    end
+  end
+  return ir
+end
+
+function IR(meta::Union{Meta,TypedMeta}; slots = false)
+  if slots
+    IR(meta.code, meta.method.nargs)
+  else
+    IR(IRCode(meta))
+  end
 end
 
 end
