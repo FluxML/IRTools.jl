@@ -106,7 +106,14 @@ function explicitbranch!(b::Block)
   return
 end
 
-explicitbranch!(ir::IR) = foreach(explicitbranch!, blocks(ir)[2:end])
+explicitbranch!(ir::IR) = foreach(explicitbranch!, blocks(ir))
+
+function branches(b::Block, c::Block)
+  c.id == b.id+1 && explicitbranch!(c)
+  filter(br -> br.block == c.id, branches(b))
+end
+
+branches(b::Block, c::Integer) = branches(b, block(b.ir, c))
 
 function argument!(b::Block, value = nothing, type = Any; insert = true, at = length(arguments(b))+1)
   if at < length(arguments(b))

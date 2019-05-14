@@ -247,8 +247,9 @@ function IR(ci::CodeInfo, nargs::Integer)
   ir = IR([ci.linetable...])
   _rename = Dict()
   rename(ex) = prewalk(ex) do x
+    haskey(_rename, x) && return _rename[x]
     x isa Core.SlotNumber && return IRTools.Slot(ci.slotnames[x.id])
-    return get(_rename, x, x)
+    return x
   end
   for i = 1:nargs
     _rename[Core.SlotNumber(i)] = argument!(ir)

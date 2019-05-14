@@ -70,7 +70,7 @@ function renumber(ir)
     ex = st.expr
     if isbits(ex) # Trivial expressions can be inlined
       delete!(p, v)
-      substitute!(p, v, ex)
+      substitute!(p, v, substitute(p, ex))
     end
   end
   return finish(p)
@@ -124,6 +124,44 @@ function trimspats!(ir::IR)
       for c in successors(b)
         c in worklist || push!(worklist, c)
       end
+    end
+  end
+  return ir
+end
+
+function ssa!(ir::IR)
+  defs = Dict(b => Dict{Slot,Any}() for b in 1:length(ir.blocks))
+  todo = Dict(b => Dict{Int,Vector{Slot}}() for b in 1:length(ir.blocks))
+  function reaching(b, v)
+    haskey(defs[b.id], v) && return defs[b.id][v]
+    x = defs[b.id][v] = argument!(b, insert = false)
+    for pred in predecessors(b)
+      if pred.id < b.id
+        for br in branches(pred, b)
+          push!(br.args, reaching(pred, v))
+        end
+      else
+        push!(get!(todo[pred.id], b.id, Slot[]), v)
+      end
+    end
+    return x
+  end
+  for b in blocks(ir)
+    rename(ex) = prewalk(x -> x isa Slot ? reaching(b, x) : x, ex)
+    for (v, st) in b
+      ex = st.expr
+      if isexpr(ex, :(=))
+        defs[b.id][ex.args[1]] = ex.args[2]
+        delete!(ir, v)
+      else
+        ir[v] = rename(ex)
+      end
+    end
+    for i = 1:length(basicblock(b).branches)
+      basicblock(b).branches[i] = rename(basicblock(b).branches[i])
+    end
+    for (succ, ss) in todo[b.id], br in branches(b, succ)
+      append!(br.args, [reaching(b, v) for v in ss])
     end
   end
   return ir
