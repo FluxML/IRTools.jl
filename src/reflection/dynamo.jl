@@ -1,20 +1,13 @@
 function transform end
 function refresh end
 
-function fallback(n)
-  ir = IR()
-  for i = 1:n+1 push!(ir.args, Any) end
-  ret = push!(ir, Expr(:call, Argument(1), [Argument(n) for n = 2:n+1]...))
-  return!(ir, ret)
-end
-
 function dynamo(f, args...)
   m = meta(Tuple{args...})
   ir = transform(f, m)::Union{IR,Nothing}
   ir == nothing && return :(args[1](args[2:end]...))
   ir = varargs!(m, ir)
   argnames!(m, :args)
-  ir = spliceargs!(m, ir, (Symbol("#self#"), Any))
+  ir = splicearg!(m, ir, Symbol("#self#"))
   return update!(m, ir)
 end
 

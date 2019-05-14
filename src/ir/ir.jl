@@ -14,12 +14,6 @@ end
 
 var(id::Integer) = Variable(id)
 
-struct Argument
-  id::Int
-end
-
-arg(id::Integer) = Argument(id)
-
 struct Branch
   condition::Any
   block::Int
@@ -70,11 +64,10 @@ struct IR
   defs::Vector{Tuple{Int,Int}}
   blocks::Vector{BasicBlock}
   lines::Vector{LineInfoNode}
-  args::Vector{Any}
 end
 
-IR() = IR([],[BasicBlock()],[],[])
-IR(lines::Vector{LineInfoNode},args) = IR([],[BasicBlock()],lines,args)
+IR() = IR([],[BasicBlock()],[])
+IR(lines::Vector{LineInfoNode}) = IR([],[BasicBlock()],lines)
 
 length(ir::IR) = sum(x -> x[2] > 0, ir.defs)
 
@@ -100,6 +93,7 @@ end
 basicblock(b::Block) = b.ir.blocks[b.id]
 branches(b::Block) = branches(basicblock(b))
 arguments(b::Block) = arguments(basicblock(b))
+arguments(ir::IR) = arguments(block(ir, 1))
 
 isreturn(b::Block) = any(isreturn, branches(b))
 
@@ -114,19 +108,28 @@ end
 
 explicitbranch!(ir::IR) = foreach(explicitbranch!, blocks(ir)[2:end])
 
-function argument!(b::Block, value = nothing, type = Any; insert = true)
-  push!(b.ir.defs, (b.id, -(length(basicblock(b).args)+1)))
+function argument!(b::Block, value = nothing, type = Any; insert = true, at = length(arguments(b))+1)
+  if at < length(arguments(b))
+    for i = 1:length(b.ir.defs)
+      (c, j) = b.ir.defs[i]
+      c == b.id && -j >= at && (b.ir.defs[i] = (c, j-1))
+    end
+  end
+  push!(b.ir.defs, (b.id, -at))
   arg = var(length(b.ir.defs))
-  push!(arguments(b), arg)
-  push!(basicblock(b).argtypes, type)
+  insert!(arguments(b), at, arg)
+  insert!(basicblock(b).argtypes, at, type)
   if insert
     explicitbranch!(b)
     for c in blocks(b.ir), br in branches(c)
-      br.block == b.id && push!(arguments(br), value)
+      br.block == b.id && insert!(arguments(br), at, value)
     end
   end
   return arg
 end
+
+argument!(ir::IR, a...; kw...) =
+  argument!(block(ir, 1), nothing, a...; kw..., insert = false)
 
 function emptyargs!(b::Block)
   empty!(arguments(b))
@@ -137,12 +140,22 @@ function emptyargs!(b::Block)
 end
 
 function deletearg!(b::Block, i)
+  arg = arguments(b)[i]
   deleteat!(arguments(b), i)
   for c in blocks(b.ir), br in branches(c)
     br.block == b.id && deleteat!(arguments(br), i)
   end
+  b.ir.defs[arg.id] = (-1, -1)
   return
 end
+
+function deletearg!(b::Block, i::AbstractVector)
+  for i in sort(i, lt = >)
+    deletearg!(b, i)
+  end
+end
+
+deletearg!(ir::IR, i) = deletearg!(block(ir, 1), i)
 
 block(ir::IR, i) = Block(ir, i)
 blocks(ir::IR) = [block(ir, i) for i = 1:length(ir.blocks)]
@@ -151,6 +164,11 @@ function blockidx(ir::IR, x::Variable)
   b, i = get(ir.defs, x.id, (-1, -1))
   i > 0 || error("No such variable $x")
   block(ir, b), i
+end
+
+function Base.haskey(ir::IR, x::Variable)
+  b, i = get(ir.defs, x.id, (-1, -1))
+  return i > 0
 end
 
 getindex(b::Block, i::Integer) = basicblock(b).stmts[i]
@@ -177,6 +195,8 @@ function getindex(ir::IR, i::Variable)
   b, i = blockidx(ir, i)
   return b[i]
 end
+
+Base.get(ir::IR, i::Variable, default) = haskey(ir, i) ? ir[i] : default
 
 function setindex!(ir::IR, x, i::Variable)
   b, i = blockidx(ir, i)
@@ -245,13 +265,17 @@ push!(ir::IR, x) = push!(block(ir, length(ir.blocks)), x)
 Base.pushfirst!(ir::IR, x) = pushfirst!(block(ir, 1), x)
 
 function insert!(ir::IR, i::Variable, x; after = false)
-  b, i = blockidx(ir, i)
-  insert!(b, i+after, x)
+  if after && ir.defs[i.id][2] < 0
+    pushfirst!(block(ir, ir.defs[i.id][1]), x)
+  else
+    b, i = blockidx(ir, i)
+    insert!(b, i+after, x)
+  end
 end
 
 insertafter!(ir, i, x) = insert!(ir, i, x, after=true)
 
-Base.empty(ir::IR) = IR(copy(ir.lines), [])
+Base.empty(ir::IR) = IR(copy(ir.lines))
 
 function Base.permute!(ir::IR, perm::AbstractVector)
   explicitbranch!(ir)
@@ -283,14 +307,21 @@ mutable struct Pipe
   var::Int
 end
 
-Pipe(ir) = Pipe(ir, IR(copy(ir.lines), copy(ir.args)), Dict(), 0)
-
 var!(p::Pipe) = NewVariable(p.var += 1)
 
-substitute!(p::Pipe, x, y) = p.map[x] = y
+substitute!(p::Pipe, x, y) = (p.map[x] = y; x)
 substitute(p::Pipe, x::Union{Variable,NewVariable}) = p.map[x]
 substitute(p::Pipe, x) = get(p.map, x, x)
 substitute(p::Pipe) = x -> substitute(p, x)
+
+function Pipe(ir)
+  p = Pipe(ir, IR(copy(ir.lines)), Dict(), 0)
+  for (x, T) in zip(p.from.blocks[1].args, p.from.blocks[1].argtypes)
+    y = argument!(blocks(p.to)[end], nothing, T, insert = false)
+    substitute!(p, x, y)
+  end
+  return p
+end
 
 function pipestate(ir::IR)
   ks = sort([Variable(i) => v for (i, v) in enumerate(ir.defs) if v[2] > 0], by = x->x[2])
@@ -298,7 +329,7 @@ function pipestate(ir::IR)
 end
 
 function iterate(p::Pipe, (ks, b, i) = (pipestate(p.from), 1, 1))
-  if i == 1
+  if i == 1 && b != 1
     for (x, T) in zip(p.from.blocks[b].args, p.from.blocks[b].argtypes)
       y = argument!(blocks(p.to)[end], nothing, T, insert = false)
       substitute!(p, x, y)
@@ -360,3 +391,6 @@ function insert!(p::Pipe, v, x; after = false)
   end
   return tmp
 end
+
+argument!(p::Pipe, a...; kw...) =
+  substitute!(p, var!(p), argument!(p.to, a...; kw...))

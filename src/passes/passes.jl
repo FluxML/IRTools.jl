@@ -4,9 +4,9 @@ function definitions(b::Block)
 end
 
 function usages(b::Block)
-  uses = Set{Union{Variable,Argument}}()
+  uses = Set{Variable}()
   prewalk(b) do x
-    x isa Union{Variable,Argument} && push!(uses, x)
+    x isa Variable && push!(uses, x)
     return x
   end
   return uses
@@ -58,11 +58,7 @@ function verify(ir::IR)
   for (b, ds) in doms
     defs = union(definitions.(ds)...)
     for x in setdiff(usages(b), defs)
-      if x isa Argument
-        @assert x.id <= length(ir.args) "Used argument $x of $(length(ir.args))"
-      else
-        error("Variable $x in block $(b.id) is not defined.")
-      end
+      error("Variable $x in block $(b.id) is not defined.")
     end
   end
   return
@@ -89,12 +85,6 @@ function merge_returns!(ir)
   for b in bs
     branches(b)[end] = branch(length(ir.blocks), arguments(branches(b)[end])[1])
   end
-  return ir
-end
-
-function merge_entry!(ir)
-  isempty(predecessors(block(ir, 1))) && return ir
-  block!(ir, 1)
   return ir
 end
 

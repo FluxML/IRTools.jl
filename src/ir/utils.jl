@@ -31,7 +31,7 @@ function map!(f, b::Block)
 end
 
 function map(f, ir::IR)
-  IR(ir.defs, map.(f, ir.blocks), ir.lines, ir.args)
+  IR(ir.defs, map.(f, ir.blocks), ir.lines)
 end
 
 function map!(f, ir::IR)
@@ -52,11 +52,8 @@ postwalk!(f, ir::Union{IR,Block}) = map!(x -> postwalk(f, x), ir)
 
 varmap(f, x) = prewalk(x -> x isa Variable ? f(x) : x, x)
 
-argmap(f, x) = prewalk(x -> x isa Argument ? f(x) : x, x)
-
 exprtype(x::GlobalRef) = isconst(x.mod, x.name) ? Typeof(getfield(x.mod, x.name)) : Any
 
-exprtype(ir::IR, x::Argument) = widenconst(ir.args[x.id])
 exprtype(ir::IR, x::GlobalRef) = exprtype(x)
 exprtype(ir::IR, x::QuoteNode) = Typeof(x.value)
 exprtype(ir::IR, x::Expr) = error(x)

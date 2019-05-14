@@ -3,7 +3,7 @@ module Wrap
 using MacroTools: isexpr, prewalk
 import Core: SSAValue, GotoNode, Compiler
 import Core: Typeof
-import Core.Compiler: CodeInfo, IRCode, CFG, BasicBlock, Argument, ReturnNode,
+import Core.Compiler: CodeInfo, IRCode, CFG, BasicBlock, ReturnNode,
   just_construct_ssa, compact!, NewNode, InferenceState, OptimizationState,
   GotoIfNot, PhiNode, PiNode, StmtRange, IncrementalCompact, insert_node!, insert_node_here!,
   compact!, finish, DomTree, construct_domtree, dominates, userefs, widenconst, types, verify_ir,
@@ -98,14 +98,9 @@ sparams(opt::OptimizationState) = VERSION > v"1.2-" ? Any[t.val for t in opt.spt
 
 using ..IRTools
 import ..IRTools: IR, Variable, Statement, Branch, TypedMeta, Meta, block!,
-  unreachable, varmap
+  unreachable, varmap, argument!
 
-function vars(ex)
-  _vars(x) = x
-  _vars(x::SSAValue) = Variable(x.id)
-  _vars(x::Argument) = IRTools.Argument(x.n)
-  prewalk(_vars, ex)
-end
+vars(ex) = prewalk(x -> x isa SSAValue ? Variable(x.id) : x, ex)
 
 Branch(x::GotoNode) = Branch(nothing, x.label, [])
 Branch(x::GotoIfNot) = Branch(vars(x.cond), x.dest, [])
@@ -140,7 +135,7 @@ function branches_for!(ir, (from, to))
   return brs
 end
 
-function rewrite_phis!(ir::IR)
+function rewrite_phis!(ir::IR, offset)
   for (v, st) in ir
     ex = st.expr
     ex isa PhiNode || continue
@@ -148,7 +143,7 @@ function rewrite_phis!(ir::IR)
     bb = IRTools.basicblock(to)
     push!(bb.args, v)
     push!(bb.argtypes, st.type)
-    for (from, arg) in zip(ex.edges, ex.values), br in branches_for!(ir, from=>to.id)
+    for (from, arg) in zip(ex.edges, ex.values), br in branches_for!(ir, from+offset=>to.id)
       push!(br.args, ex[from])
     end
     delete!(ir, v)
@@ -158,9 +153,12 @@ function rewrite_phis!(ir::IR)
 end
 
 function IR(ir::IRCode)
-  ir2 = IR(ir.linetable, ir.argtypes)
-  defs = Dict()
   isempty(ir.new_nodes) || error("IRCode must be compacted")
+  ir2 = IR(ir.linetable)
+  defs = Dict()
+  args = map(T -> argument!(ir2, T), ir.argtypes)
+  offset = !isempty(ir.cfg.blocks[1].preds)
+  offset && block!(ir2)
   for i = 1:length(ir.stmts)
     findfirst(==(i), ir.cfg.index) == nothing || block!(ir2)
     if ir.stmts[i] isa Union{GotoIfNot,GotoNode,ReturnNode}
@@ -170,25 +168,29 @@ function IR(ir::IRCode)
       defs[Variable(i)] = x
     end
   end
-  ir2 = varmap(x -> defs[x], ir2)
-  return ir2 |> rewrite_phis! |> IRTools.renumber
+  ir2 = prewalk(x -> x isa Variable ? defs[x] :
+                     x isa Core.Compiler.Argument ? Variable(x.n) :
+                     x, ir2)
+  rewrite_phis!(ir2, offset)
+  return ir2 |> IRTools.renumber
 end
 
 IR(meta::Union{Meta,TypedMeta}) = IR(IRCode(meta))
 
-function unvars(ex)
-  _unvars(x) = x
-  _unvars(x::Variable) = SSAValue(x.id)
-  _unvars(x::IRTools.Argument) = Argument(x.id)
-  prewalk(_unvars, ex)
-end
+unvars(ex) = prewalk(x -> x isa Variable ? SSAValue(x.id) : x, ex)
 
 function IRCode(ir::IR)
   defs = Dict()
   stmts, types, lines = [], [], Int32[]
   index = Int[]
   for b in IRTools.blocks(ir)
-    @assert isempty(IRTools.basicblock(b).args)
+    if b.id == 1
+      for (i, arg) in enumerate(IRTools.arguments(b))
+        defs[arg] = Core.Compiler.Argument(i)
+      end
+    else
+      @assert isempty(IRTools.basicblock(b).args)
+    end
     for (v, st) in b
       defs[v] = Variable(length(stmts)+1)
       ex = varmap(x -> get(defs, x, x), st.expr) |> unvars
@@ -219,7 +221,7 @@ function IRCode(ir::IR)
   cfg = CFG(bs, index)
   flags = [0x00 for _ in stmts]
   sps = VERSION > v"1.2-" ? [] : Core.svec()
-  IRCode(stmts, types, lines, flags, cfg, ir.lines, ir.args, [], sps)
+  IRCode(stmts, types, lines, flags, cfg, ir.lines, ir.blocks[1].argtypes, [], sps)
 end
 
 end

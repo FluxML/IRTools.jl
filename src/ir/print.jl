@@ -2,7 +2,6 @@ import Base: show
 
 # TODO: real expression printing
 Base.show(io::IO, x::Variable) = print(io, "%", x.id)
-Base.show(io::IO, x::Argument) = print(io, "_", x.id)
 
 function show(io::IO, b::Branch)
   if b == unreachable
