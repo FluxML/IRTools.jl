@@ -1,48 +1,11 @@
 module Wrap
 
 using MacroTools: isexpr, prewalk
-import Core: SSAValue, GotoNode, Compiler
-import Core: Typeof
+import Core: SSAValue, GotoNode
 import Core.Compiler: CodeInfo, IRCode, CFG, BasicBlock, ReturnNode,
-  just_construct_ssa, compact!, NewNode, InferenceState, OptimizationState,
-  GotoIfNot, PhiNode, PiNode, StmtRange, IncrementalCompact, insert_node!, insert_node_here!,
-  compact!, finish, DomTree, construct_domtree, dominates, userefs, widenconst, types, verify_ir,
-  ssamap
-
-for T in :[IRCode, IncrementalCompact, UseRef, UseRefIterator, TypesView].args
-  @eval begin
-    Base.getindex(ir::Compiler.$T, a...) = Compiler.getindex(ir, a...)
-    Base.setindex!(ir::Compiler.$T, a...) = Compiler.setindex!(ir, a...)
-  end
-end
-
-for T in :[UseRefIterator, IncrementalCompact, Pair].args
-  @eval Base.iterate(x::Compiler.$T, a...) = Compiler.iterate(x, a...)
-end
-
-if VERSION > v"1.1.0-DEV.560"
-  Base.getindex(r::StmtRange, i) = (r.start:r.stop)[i]
-else
-  Base.first(r::StmtRange) = r.first
-  Base.getindex(r::StmtRange, i) = (r.first:r.last)[i]
-end
+  just_construct_ssa, compact!, OptimizationState, GotoIfNot, PhiNode, StmtRange
 
 PhiNode(x, y) = PhiNode(Any[x...], Any[y...])
-
-if VERSION > v"1.1.0-DEV.560"
-  CFG(bs) = CFG(bs, map(b -> b.stmts.start, bs[2:end]))
-else
-  CFG(bs) = CFG(bs, map(b -> b.stmts.first, bs[2:end]))
-end
-
-StmtRange(r::UnitRange) = StmtRange(first(r), last(r))
-
-Base.length(phi::PhiNode) = length(phi.edges)
-
-function Base.iterate(phi::PhiNode, i = 1)
-  i > length(phi) && return
-  phi.edges[i]=>phi.values[i], i+1
-end
 
 function Base.getindex(phi::PhiNode, b)
   j = findfirst(c -> c == b, phi.edges)
@@ -50,9 +13,6 @@ function Base.getindex(phi::PhiNode, b)
 end
 
 # SSA contruction (forked from Base for untyped code)
-
-import Core.Compiler: normalize, strip_trailing_junk!, compute_basic_blocks,
-  scan_slot_def_use, LineInfoNode, construct_ssa!, IR_FLAG_INBOUNDS
 
 sparams(opt::OptimizationState) = VERSION > v"1.2-" ? Any[t.val for t in opt.sptypes] : Any[opt.sp...]
 
