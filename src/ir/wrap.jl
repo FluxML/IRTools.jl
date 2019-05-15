@@ -54,46 +54,6 @@ end
 import Core.Compiler: normalize, strip_trailing_junk!, compute_basic_blocks,
   scan_slot_def_use, LineInfoNode, construct_ssa!, IR_FLAG_INBOUNDS
 
-function just_construct_ssa(ci::CodeInfo, code::Vector{Any}, nargs::Int, sp)
-  ci.ssavaluetypes = Any[Any for _ = 1:length(code)]
-  slottypes = Any[Any for _ = 1:length(ci.slotnames)]
-  inbounds_depth = 0 # Number of stacked inbounds
-  meta = Any[]
-  flags = fill(0x00, length(code))
-  for i = 1:length(code)
-    stmt = code[i]
-    if isexpr(stmt, :inbounds)
-      arg1 = stmt.args[1]
-      if arg1 === true # push
-        inbounds_depth += 1
-      elseif arg1 === false # clear
-        inbounds_depth = 0
-      elseif inbounds_depth > 0 # pop
-        inbounds_depth -= 1
-      end
-      stmt = nothing
-    else
-      stmt = normalize(stmt, meta)
-    end
-    code[i] = stmt
-    if !(stmt === nothing)
-      if inbounds_depth > 0
-        flags[i] |= IR_FLAG_INBOUNDS
-      end
-    end
-  end
-  strip_trailing_junk!(ci, code, flags)
-  cfg = compute_basic_blocks(code)
-  defuse_insts = scan_slot_def_use(nargs, ci, code)
-  domtree = construct_domtree(cfg)
-  ir = let code = Any[nothing for _ = 1:length(code)]
-    argtypes = slottypes[1:(nargs+1)]
-    IRCode(code, Any[], ci.codelocs, flags, cfg, collect(LineInfoNode, ci.linetable), argtypes, meta, sp)
-  end
-  ir = construct_ssa!(ci, code, ir, domtree, defuse_insts, nargs, sp, slottypes)
-  return ir
-end
-
 sparams(opt::OptimizationState) = VERSION > v"1.2-" ? Any[t.val for t in opt.sptypes] : Any[opt.sp...]
 
 using ..IRTools
@@ -112,13 +72,6 @@ function IRCode(meta::TypedMeta)
   ir = just_construct_ssa(meta.code, copy(meta.code.code),
                           Int(meta.method.nargs)-1, opt)
   resize!(ir.argtypes, meta.method.nargs)
-  return compact!(ir)
-end
-
-function IRCode(meta::Meta)
-  sps = VERSION > v"1.2-" ? Any[meta.sparams...] : meta.sparams
-  ir = just_construct_ssa(meta.code, copy(meta.code.code),
-                          Int(meta.nargs)-1, sps)
   return compact!(ir)
 end
 
@@ -267,17 +220,23 @@ function IR(ci::CodeInfo, nargs::Integer)
     elseif isexpr(ex, :return)
       return!(ir, rename(ex.args[1]))
     else
-      _rename[Core.SSAValue(i)] = push!(ir, rename(ex))
+      _rename[Core.SSAValue(i)] = push!(ir, IRTools.stmt(rename(ex), line = ci.codelocs[i]))
     end
   end
   return ir
 end
 
-function IR(meta::Union{Meta,TypedMeta}; slots = false)
+function IR(meta::Union{Meta,TypedMeta}; slots = false, prune = true)
   if slots
-    IR(meta.code, meta.method.nargs)
+    return IR(meta.code, meta.method.nargs)
+  elseif meta isa Meta # TODO check this works for meta
+    ir = IR(meta.code, meta.nargs) |> IRTools.ssa!
+    if prune
+      ir = ir |> IRTools.prune! |> IRTools.renumber
+    end
+    return ir
   else
-    IR(IRCode(meta))
+    return IR(IRCode(meta))
   end
 end
 

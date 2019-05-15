@@ -244,14 +244,17 @@ end
 applyex(f, x) = x
 applyex(f, x::Expr) =
   Expr(x.head, [x isa Expr ? f(x) : x for x in x.args]...)
+applyex(f, x::Statement) = Statement(x, applyex(f, x.expr))
 
-function push!(b::Block, x)
-  x = applyex(x -> push!(b, x), x)
+function push!(b::Block, x::Statement)
+  x = applyex(a -> push!(b, Statement(a, line = x.line)), x)
   x = Statement(x)
   push!(basicblock(b).stmts, x)
   push!(b.ir.defs, (b.id, length(basicblock(b).stmts)))
   return Variable(length(b.ir.defs))
 end
+
+push!(b::Block, x) = push!(b, Statement(x))
 
 function insert!(b::Block, idx::Integer, x)
   insert!(basicblock(b).stmts, idx, Statement(x))
