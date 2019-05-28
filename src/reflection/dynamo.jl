@@ -2,9 +2,9 @@ function transform end
 function refresh end
 
 function dynamo(f, args...)
-  m = meta(Tuple{args...})
-  ir = transform(f, m)::Union{IR,Nothing}
+  ir = transform(f, args...)::Union{IR,Nothing}
   ir == nothing && return :(args[1](args[2:end]...))
+  m = ir.meta::Meta
   ir = varargs!(m, ir)
   argnames!(m, :args)
   ir = splicearg!(m, ir, Symbol("#self#"))

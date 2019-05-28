@@ -58,7 +58,7 @@ Here it is:
 ```julia
 julia> using IRTools: IR, @dynamo
 
-julia> @dynamo roundtrip(meta) = IR(meta)
+julia> @dynamo roundtrip(a...) = IR(a...)
 
 julia> mul(a, b) = a*b
 mul (generic function with 1 method)
@@ -67,7 +67,7 @@ julia> roundtrip(mul, 2, 3)
 6
 ```
 
-Here's how it works: our dynamo gets passed a *metadata* object `meta` representing the method we're working on. Typically, the only thing we'll want to do with this is to get its IR with `IR(meta)`. Then we can transform that IR, return it, and it'll be compiled and run as usual.
+Here's how it works: our dynamo gets passed a set of *argument types* `a...`. We can use this to get IR for the method being called, with `IR(a...)`. Then we can transform that IR, return it, and it'll be compiled and run as usual.
 
 In this case, we can easily check that the transformed code produced by `roundtrip` is identical to the original IR for `mul`.
 
@@ -75,22 +75,22 @@ In this case, we can easily check that the transformed code produced by `roundtr
 julia> using IRTools: @code_ir
 
 julia> @code_ir mul(2, 3)
-1:
-  %1 = _2 * _3
-  return %1
+1: (%1, %2, %3)
+  %4 = %2 * %3
+  return %4
 
 julia> @code_ir roundtrip mul(1, 2)
-1:
-  %1 = _2 * _3
-  return %1
+1: (%1, %2, %3)
+  %4 = %2 * %3
+  return %4
 ```
 
 Now we can recreate our `foo` macro. It's a little more verbose since simple symbols like `*` are resolved to `GlobalRef`s in lowered code, but it's broadly the same as our macro.
 
 ```julia
-@dynamo function foo(meta)
-  ir = IR(meta)
-  ir = prewalk(ir) do x
+@dynamo function foo(a...)
+  ir = IR(a...)
+  ir = MacroTools.prewalk(ir) do x
     x isa GlobalRef && x.name == :(*) && return GlobalRef(Base, :+)
     return x
   end
@@ -130,10 +130,12 @@ A key difference between macros and dynamos is that dynamos get passed *function
 So what if `foo` actually inserted calls to itself when modifying a function? In other words, `prod([1, 2, 3])` would become `foo(prod, [1, 2, 3])`, and so on for each call inside a function. This lets us get the "dynamic extent" property that we talked about earlier.
 
 ```julia
-@dynamo function foo2(meta)
-  meta == nothing && return
-  ir = IR(meta)
-  ir = prewalk(ir) do x
+using IRTools: xcall
+
+@dynamo function foo2(a...)
+  ir = IR(a...)
+  ir == nothing && return
+  ir = MacroTools.prewalk(ir) do x
     x isa GlobalRef && x.name == :(*) && return GlobalRef(Base, :+)
     return x
   end
@@ -145,7 +147,7 @@ So what if `foo` actually inserted calls to itself when modifying a function? In
 end
 ```
 
-There are two changes here: firstly, walking over all IR statements to look for, and modify, `call` expressions. Secondly we handle the case where `meta == nothing`, which can happen when we hit things like intrinsic functions for which there is no Julia code. If we return `nothing`, the dynamo will just run that function as usual.
+There are two changes here: firstly, walking over all IR statements to look for, and modify, `call` expressions. Secondly we handle the case where `ir == nothing`, which can happen when we hit things like intrinsic functions for which there is no source code. If we return `nothing`, the dynamo will just run that function as usual.
 
 Check it does the transform we wanted:
 
@@ -154,14 +156,14 @@ julia> mul_wrapped(a, b) = mul(a, b)
 mul_wrapped (generic function with 1 method)
 
 julia> @code_ir mul_wrapped(5, 10)
-1:
-  %1 = (Main.mul)(_2, _3)
-  return %1
+1: (%1, %2, %3)
+  %4 = (Main.mul)(%2, %3)
+  return %4
 
 julia> @code_ir foo2 mul_wrapped(5, 10)
-1:
-  %1 = (Main.foo2)(Main.mul, _2, _3)
-  return %1
+1: (%1, %2, %3)
+  %4 = (Main.foo2)(Main.mul, %2, %3)
+  return %4
 ```
 
 And that it works as expected:
@@ -190,7 +192,7 @@ This, we have rewritten the `prod` function to actually calculate `sum`, by *int
     A current usability issue with the dynamo is that it is _not_ automatically updated when you redefine functions. For example:
 
     ```julia
-    julia> @dynamo roundtrip(m) = IR(m)
+    julia> @dynamo roundtrip(a...) = IR(a...)
 
     julia> foo(x) = x^2
     foo (generic function with 1 method)

@@ -31,7 +31,7 @@ function map!(f, b::Block)
 end
 
 function map(f, ir::IR)
-  IR(ir.defs, map.(f, ir.blocks), ir.lines)
+  IR(ir.defs, map.(f, ir.blocks), ir.lines, ir.meta)
 end
 
 function map!(f, ir::IR)

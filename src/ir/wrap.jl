@@ -155,9 +155,9 @@ function blockstarts(ci::CodeInfo)
   return sort(unique(bs))
 end
 
-function IR(ci::CodeInfo, nargs::Integer)
+function IR(ci::CodeInfo, nargs::Integer; meta = nothing)
   bs = blockstarts(ci)
-  ir = IR([ci.linetable...])
+  ir = IR([ci.linetable...], meta = meta)
   _rename = Dict()
   rename(ex) = prewalk(ex) do x
     haskey(_rename, x) && return _rename[x]
@@ -188,9 +188,9 @@ end
 
 function IR(meta::Union{Meta,TypedMeta}; slots = false, prune = true)
   if slots
-    return IR(meta.code, meta.method.nargs)
+    return IR(meta.code, meta.method.nargs, meta = meta)
   elseif meta isa Meta # TODO check this works for meta
-    ir = IR(meta.code, meta.nargs) |> IRTools.ssa!
+    ir = IR(meta.code, meta.nargs, meta = meta) |> IRTools.ssa!
     if prune
       ir = ir |> IRTools.prune! |> IRTools.renumber
     end
@@ -198,6 +198,12 @@ function IR(meta::Union{Meta,TypedMeta}; slots = false, prune = true)
   else
     return IR(IRCode(meta))
   end
+end
+
+function IR(Ts::Type...; slots = false, prune = true)
+  m = IRTools.meta(Tuple{Ts...})
+  m == nothing && return
+  IR(m, slots = slots, prune = prune)
 end
 
 end

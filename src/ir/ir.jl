@@ -64,10 +64,11 @@ struct IR
   defs::Vector{Tuple{Int,Int}}
   blocks::Vector{BasicBlock}
   lines::Vector{LineInfoNode}
+  meta::Any
 end
 
-IR() = IR([],[BasicBlock()],[])
-IR(lines::Vector{LineInfoNode}) = IR([],[BasicBlock()],lines)
+IR(; meta = nothing) = IR([],[BasicBlock()],[],meta)
+IR(lines::Vector{LineInfoNode}; meta = nothing) = IR([],[BasicBlock()],lines,meta)
 
 length(ir::IR) = sum(x -> x[2] > 0, ir.defs)
 
@@ -325,7 +326,7 @@ substitute(p::Pipe, x) = get(p.map, x, x)
 substitute(p::Pipe) = x -> substitute(p, x)
 
 function Pipe(ir)
-  p = Pipe(ir, IR(copy(ir.lines)), Dict(), 0)
+  p = Pipe(ir, IR(copy(ir.lines), meta = ir.meta), Dict(), 0)
   for (x, T) in zip(p.from.blocks[1].args, p.from.blocks[1].argtypes)
     y = argument!(blocks(p.to)[end], nothing, T, insert = false)
     substitute!(p, x, y)
