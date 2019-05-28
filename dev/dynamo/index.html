@@ -20,25 +20,25 @@ julia&gt; @foo prod([5, 10])
   esc(ex)
 end</code></pre><p>Here it is:</p><pre><code class="language-julia">julia&gt; using IRTools: IR, @dynamo
 
-julia&gt; @dynamo roundtrip(meta) = IR(meta)
+julia&gt; @dynamo roundtrip(a...) = IR(a...)
 
 julia&gt; mul(a, b) = a*b
 mul (generic function with 1 method)
 
 julia&gt; roundtrip(mul, 2, 3)
-6</code></pre><p>Here&#39;s how it works: our dynamo gets passed a <em>metadata</em> object <code>meta</code> representing the method we&#39;re working on. Typically, the only thing we&#39;ll want to do with this is to get its IR with <code>IR(meta)</code>. Then we can transform that IR, return it, and it&#39;ll be compiled and run as usual.</p><p>In this case, we can easily check that the transformed code produced by <code>roundtrip</code> is identical to the original IR for <code>mul</code>.</p><pre><code class="language-julia">julia&gt; using IRTools: @code_ir
+6</code></pre><p>Here&#39;s how it works: our dynamo gets passed a set of <em>argument types</em> <code>a...</code>. We can use this to get IR for the method being called, with <code>IR(a...)</code>. Then we can transform that IR, return it, and it&#39;ll be compiled and run as usual.</p><p>In this case, we can easily check that the transformed code produced by <code>roundtrip</code> is identical to the original IR for <code>mul</code>.</p><pre><code class="language-julia">julia&gt; using IRTools: @code_ir
 
 julia&gt; @code_ir mul(2, 3)
-1:
-  %1 = _2 * _3
-  return %1
+1: (%1, %2, %3)
+  %4 = %2 * %3
+  return %4
 
 julia&gt; @code_ir roundtrip mul(1, 2)
-1:
-  %1 = _2 * _3
-  return %1</code></pre><p>Now we can recreate our <code>foo</code> macro. It&#39;s a little more verbose since simple symbols like <code>*</code> are resolved to <code>GlobalRef</code>s in lowered code, but it&#39;s broadly the same as our macro.</p><pre><code class="language-julia">@dynamo function foo(meta)
-  ir = IR(meta)
-  ir = prewalk(ir) do x
+1: (%1, %2, %3)
+  %4 = %2 * %3
+  return %4</code></pre><p>Now we can recreate our <code>foo</code> macro. It&#39;s a little more verbose since simple symbols like <code>*</code> are resolved to <code>GlobalRef</code>s in lowered code, but it&#39;s broadly the same as our macro.</p><pre><code class="language-julia">@dynamo function foo(a...)
+  ir = IR(a...)
+  ir = MacroTools.prewalk(ir) do x
     x isa GlobalRef &amp;&amp; x.name == :(*) &amp;&amp; return GlobalRef(Base, :+)
     return x
   end
@@ -60,10 +60,12 @@ julia&gt; foo() do
 julia&gt; foo() do
          prod([10, 5])
        end
-50</code></pre><p>To get different behaviour we need to <em>go deeper</em> – and talk about recursion.</p><h2><a class="nav-anchor" id="Recursing-1" href="#Recursing-1">Recursing</a></h2><p>A key difference between macros and dynamos is that dynamos get passed <em>functions</em> with they look inside, rather than expressions, so we don&#39;t need to write out <code>mul</code> when calling <code>foo(mul, 5, 10)</code>.</p><p>So what if <code>foo</code> actually inserted calls to itself when modifying a function? In other words, <code>prod([1, 2, 3])</code> would become <code>foo(prod, [1, 2, 3])</code>, and so on for each call inside a function. This lets us get the &quot;dynamic extent&quot; property that we talked about earlier.</p><pre><code class="language-julia">@dynamo function foo2(meta)
-  meta == nothing &amp;&amp; return
-  ir = IR(meta)
-  ir = prewalk(ir) do x
+50</code></pre><p>To get different behaviour we need to <em>go deeper</em> – and talk about recursion.</p><h2><a class="nav-anchor" id="Recursing-1" href="#Recursing-1">Recursing</a></h2><p>A key difference between macros and dynamos is that dynamos get passed <em>functions</em> with they look inside, rather than expressions, so we don&#39;t need to write out <code>mul</code> when calling <code>foo(mul, 5, 10)</code>.</p><p>So what if <code>foo</code> actually inserted calls to itself when modifying a function? In other words, <code>prod([1, 2, 3])</code> would become <code>foo(prod, [1, 2, 3])</code>, and so on for each call inside a function. This lets us get the &quot;dynamic extent&quot; property that we talked about earlier.</p><pre><code class="language-julia">using IRTools: xcall
+
+@dynamo function foo2(a...)
+  ir = IR(a...)
+  ir == nothing &amp;&amp; return
+  ir = MacroTools.prewalk(ir) do x
     x isa GlobalRef &amp;&amp; x.name == :(*) &amp;&amp; return GlobalRef(Base, :+)
     return x
   end
@@ -72,18 +74,18 @@ julia&gt; foo() do
     ir[x] = xcall(Main, :foo2, st.expr.args...)
   end
   return ir
-end</code></pre><p>There are two changes here: firstly, walking over all IR statements to look for, and modify, <code>call</code> expressions. Secondly we handle the case where <code>meta == nothing</code>, which can happen when we hit things like intrinsic functions for which there is no Julia code. If we return <code>nothing</code>, the dynamo will just run that function as usual.</p><p>Check it does the transform we wanted:</p><pre><code class="language-julia">julia&gt; mul_wrapped(a, b) = mul(a, b)
+end</code></pre><p>There are two changes here: firstly, walking over all IR statements to look for, and modify, <code>call</code> expressions. Secondly we handle the case where <code>ir == nothing</code>, which can happen when we hit things like intrinsic functions for which there is no source code. If we return <code>nothing</code>, the dynamo will just run that function as usual.</p><p>Check it does the transform we wanted:</p><pre><code class="language-julia">julia&gt; mul_wrapped(a, b) = mul(a, b)
 mul_wrapped (generic function with 1 method)
 
 julia&gt; @code_ir mul_wrapped(5, 10)
-1:
-  %1 = (Main.mul)(_2, _3)
-  return %1
+1: (%1, %2, %3)
+  %4 = (Main.mul)(%2, %3)
+  return %4
 
 julia&gt; @code_ir foo2 mul_wrapped(5, 10)
-1:
-  %1 = (Main.foo2)(Main.mul, _2, _3)
-  return %1</code></pre><p>And that it works as expected:</p><pre><code class="language-julia">julia&gt; foo() do # Does not work (since there is no literal `*` here)
+1: (%1, %2, %3)
+  %4 = (Main.foo2)(Main.mul, %2, %3)
+  return %4</code></pre><p>And that it works as expected:</p><pre><code class="language-julia">julia&gt; foo() do # Does not work (since there is no literal `*` here)
          mul(5, 10)
        end
 50
@@ -96,7 +98,7 @@ julia&gt; foo2() do # Works correctly
 julia&gt; foo2() do
          prod([5, 10])
        end
-15</code></pre><p>This, we have rewritten the <code>prod</code> function to actually calculate <code>sum</code>, by <em>internally</em> rewriting all calls to <code>*</code> to instead use <code>+</code>.</p><div class="admonition warning"><div class="admonition-title">Warning</div><div class="admonition-text"><p>A current usability issue with the dynamo is that it is <em>not</em> automatically updated when you redefine functions. For example:</p><pre><code class="language-julia">julia&gt; @dynamo roundtrip(m) = IR(m)
+15</code></pre><p>This, we have rewritten the <code>prod</code> function to actually calculate <code>sum</code>, by <em>internally</em> rewriting all calls to <code>*</code> to instead use <code>+</code>.</p><div class="admonition warning"><div class="admonition-title">Warning</div><div class="admonition-text"><p>A current usability issue with the dynamo is that it is <em>not</em> automatically updated when you redefine functions. For example:</p><pre><code class="language-julia">julia&gt; @dynamo roundtrip(a...) = IR(a...)
 
 julia&gt; foo(x) = x^2
 foo (generic function with 1 method)
