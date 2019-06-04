@@ -17,7 +17,10 @@ function dominators(ir)
   worklist = blocks(ir)
   while !isempty(worklist)
     b = popfirst!(worklist)
-    ds = isempty(predecessors(b)) ? Set([b]) :
+    # We currently special case the first block here,
+    # since Julia sometimes creates blocks with no predecessors,
+    # which otherwise throw off the analysis.
+    ds = isempty(predecessors(b)) ? Set([b, block(ir, 1)]) :
       push!(intersect([doms[c] for c in predecessors(b)]...), b)
     if ds != doms[b]
       doms[b] = ds
