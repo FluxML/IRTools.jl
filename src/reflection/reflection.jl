@@ -93,6 +93,9 @@ function meta(T; world = worldcounter())
     ci = Base.isgenerated(mi) ? Core.Compiler.get_staged(mi) : Base.uncompressed_ast(mi)
   end
   ci.method_for_inference_limit_heuristics = method
+  if isdefined(ci, :edges)
+    ci.edges = Core.MethodInstance[mi]
+  end
   Base.Meta.partially_inline!(ci.code, [], method.sig, Any[sps...], 0, 0, :propagate)
   Meta(method, ci, method.nargs, sps)
 end
