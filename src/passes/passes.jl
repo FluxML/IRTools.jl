@@ -154,7 +154,7 @@ function ssa!(ir::IR)
     rename(ex) = prewalk(x -> x isa Slot ? reaching(b, x) : x, ex)
     for (v, st) in b
       ex = st.expr
-      if isexpr(ex, :(=))
+      if isexpr(ex, :(=)) && ex.args[1] isa Slot
         defs[b.id][ex.args[1]] = rename(ex.args[2])
         delete!(ir, v)
       else
