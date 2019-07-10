@@ -96,6 +96,9 @@ branches(b::Block) = branches(basicblock(b))
 arguments(b::Block) = arguments(basicblock(b))
 arguments(ir::IR) = arguments(block(ir, 1))
 
+canbranch(bb::Block) = length(branches(bb)) == 0 || isconditional(branches(bb)[end])
+isreturn(bb::Block) = length(branches(bb)) > 0 && isreturn(branches(bb)[end])
+
 isreturn(b::Block) = any(isreturn, branches(b))
 
 function explicitbranch!(b::Block)
@@ -187,7 +190,9 @@ setindex!(b::Block, x, i::Integer) = (b[i] = Statement(b[i], x))
 branch(block::Integer, args...; unless = nothing) =
   Branch(unless, block, Any[args...])
 
-function branch!(b::Block, block::Integer, args...; unless = nothing)
+branch(block::Block, args...; kw...) = branch(block.id, args...; kw...)
+
+function branch!(b::Block, block, args...; unless = nothing)
   push!(branches(b), branch(block, args...; unless = unless))
   return b
 end
