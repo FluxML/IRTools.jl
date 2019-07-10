@@ -97,7 +97,6 @@ arguments(b::Block) = arguments(basicblock(b))
 arguments(ir::IR) = arguments(block(ir, 1))
 
 canbranch(bb::Block) = length(branches(bb)) == 0 || isconditional(branches(bb)[end])
-isreturn(bb::Block) = length(branches(bb)) > 0 && isreturn(branches(bb)[end])
 
 isreturn(b::Block) = any(isreturn, branches(b))
 
