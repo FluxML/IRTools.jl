@@ -164,9 +164,9 @@ function ssa!(ir::IR)
     for i = 1:length(basicblock(b).branches)
       basicblock(b).branches[i] = rename(basicblock(b).branches[i])
     end
-    for (succ, ss) in todo[b.id], br in branches(b, succ)
-      append!(br.args, [reaching(b, v) for v in ss])
-    end
+  end
+  for b in blocks(ir), (succ, ss) in todo[b.id], br in branches(b, succ)
+    append!(br.args, [reaching(b, v) for v in ss])
   end
   return ir
 end
