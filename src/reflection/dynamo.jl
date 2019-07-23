@@ -1,8 +1,24 @@
+struct CompileError
+  transform
+  args
+  err
+end
+
+function Base.showerror(io::IO, err::CompileError)
+  println(io, "Error compiling @dynamo $(err.transform) on $(err.args):")
+  showerror(io, err.err)
+end
+
 function transform end
 function refresh end
 
 function dynamo(f, args...)
-  ir = transform(f, args...)::Union{IR,Nothing}
+  try
+    ir = transform(f, args...)::Union{IR,Expr,Nothing}
+  catch e
+    rethrow(CompileError(f, args, e))
+  end
+  ir isa Expr && return ir
   ir == nothing && return :(args[1](args[2:end]...))
   m = ir.meta::Meta
   ir = varargs!(m, ir)

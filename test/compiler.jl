@@ -44,3 +44,7 @@ foo(x) = y = x > 0 ? x + 1 : x - 1
 end
 
 @test mullify(prod, [5, 10]) == 15
+
+@dynamo err(a...) = 0//0
+
+@test_throws IRTools.CompileError err(+, 2, 3)
