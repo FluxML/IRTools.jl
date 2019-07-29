@@ -15,13 +15,13 @@ xcall(f::Symbol, args...) = xcall(Base, f, args...)
 map(f, br::Branch) = Branch(br, condition = f(br.condition), args = f.(br.args))
 
 function map(f, b::BasicBlock)
-  stmts = map(x -> Statement(x, f(x.expr)), b.stmts)
+  stmts = map(x -> Statement(x, expr = f(x.expr)), b.stmts)
   branches = map(br -> map(f, br), b.branches)
   BasicBlock(stmts, b.args, b.argtypes, branches)
 end
 
 function map!(f, b::BasicBlock)
-  map!(x -> Statement(x, f(x.expr)), b.stmts, b.stmts)
+  map!(x -> Statement(x, expr = f(x.expr)), b.stmts, b.stmts)
   map!(br -> Branch(br, condition = f(br.condition), args = f.(br.args)), b.branches, b.branches)
   return b
 end
@@ -41,7 +41,7 @@ function map!(f, ir::IR)
   return ir
 end
 
-walk(st::Statement, inner, outer) = Statement(st, inner(st.expr))
+walk(st::Statement, inner, outer) = Statement(st, expr = inner(st.expr))
 walk(bb::BasicBlock, inner, outer) = map(inner, bb)
 walk(bb::Branch, inner, outer) = map(inner, bb)
 walk(b::Block, inner, outer) = walk(basicblock(b), inner, outer)

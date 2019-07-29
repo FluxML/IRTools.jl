@@ -40,10 +40,10 @@ struct Statement
   line::Int
 end
 
-Statement(x; type = Any, line = 0) =
-  Statement(x, type, line)
+Statement(x; expr = x, type = Any, line = 0) =
+  Statement(expr, type, line)
 
-Statement(x::Statement, expr = x.expr; type = x.type, line = x.line) =
+Statement(x::Statement; expr = x.expr, type = x.type, line = x.line) =
   Statement(expr, type, line)
 
 const stmt = Statement
@@ -189,7 +189,7 @@ end
 getindex(b::Block, i::Integer) = basicblock(b).stmts[i]
 getindex(b::Block, i::Variable) = b.ir[i]
 setindex!(b::Block, x::Statement, i::Integer) = (basicblock(b).stmts[i] = x)
-setindex!(b::Block, x, i::Integer) = (b[i] = Statement(b[i], x))
+setindex!(b::Block, x, i::Integer) = (b[i] = Statement(b[i], expr = x))
 
 branch(block::Integer, args...; unless = nothing) =
   Branch(unless, block, Any[args...])
@@ -257,10 +257,10 @@ end
 applyex(f, x) = x
 applyex(f, x::Expr) =
   Expr(x.head, [x isa Expr ? f(x) : x for x in x.args]...)
-applyex(f, x::Statement) = Statement(x, applyex(f, x.expr))
+applyex(f, x::Statement) = Statement(x, expr = applyex(f, x.expr))
 
 function push!(b::Block, x::Statement)
-  x = applyex(a -> push!(b, Statement(a, line = x.line)), x)
+  x = applyex(a -> push!(b, Statement(x, expr = a)), x)
   x = Statement(x)
   push!(basicblock(b).stmts, x)
   push!(b.ir.defs, (b.id, length(basicblock(b).stmts)))
