@@ -197,7 +197,10 @@ branch(block::Integer, args...; unless = nothing) =
 branch(block::Block, args...; kw...) = branch(block.id, args...; kw...)
 
 function branch!(b::Block, block, args...; unless = nothing)
-  push!(branches(b), branch(block, args...; unless = unless))
+  brs = branches(b)
+  unless === nothing && deleteat!(brs, findall(br -> br.condition === nothing, brs))
+  args = map(a -> push!(b, a), args)
+  push!(brs, branch(block, args...; unless = unless))
   return b
 end
 
