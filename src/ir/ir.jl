@@ -269,6 +269,8 @@ end
 
 push!(b::Block, x) = push!(b, Statement(x))
 
+push!(b::Block, x::Variable) = x
+
 function insert!(b::Block, idx::Integer, x)
   insert!(basicblock(b).stmts, idx, Statement(x))
   for i = 1:length(b.ir.defs)
@@ -417,3 +419,9 @@ end
 
 argument!(p::Pipe, a...; kw...) =
   substitute!(p, var!(p), argument!(p.to, a...; kw...))
+
+function branch!(ir::Pipe, b, args...; kw...)
+  args = map(a -> postwalk(substitute(ir), a), args)
+  branch!(blocks(ir.to)[end], b, args...; kw...)
+  return ir
+end
