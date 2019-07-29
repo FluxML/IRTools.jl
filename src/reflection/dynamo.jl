@@ -54,7 +54,7 @@ end
 
 macro code_ir(dy, ex)
   @capture(ex, f_(args__)) || error("@code_dynamo f(x...)")
-  :(transform($(esc(dy)), meta(typesof($(esc(f)), $(esc.(args)...)))))
+  :(transform(typeof($(esc(dy))), meta(typesof($(esc(f)), $(esc.(args)...)))))
 end
 
 function recurse!(ir)

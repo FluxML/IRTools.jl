@@ -15,6 +15,8 @@ add(a, b) = a+b
 @test roundtrip(add, 2, 3) == 5
 @test passthrough(add, 2, 3) == 5
 
+@test @code_ir(passthrough, add(2, 3)) isa IR
+
 IRTools.refresh(roundtrip)
 
 add(a, b) = a*b
