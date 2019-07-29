@@ -118,6 +118,11 @@ end
 
 branches(b::Block, c::Integer) = branches(b, block(b.ir, c))
 
+function returnvalue(b::Block)
+  isreturn(branches(b)[end]) || error("Block does not return")
+  return branches(b)[end].args[1]
+end
+
 function argument!(b::Block, value = nothing, type = Any; insert = true, at = length(arguments(b))+1)
   if at < length(arguments(b))
     for i = 1:length(b.ir.defs)
