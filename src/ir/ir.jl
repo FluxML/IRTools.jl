@@ -271,6 +271,7 @@ push!(b::Block, x) = push!(b, Statement(x))
 
 push!(b::Block, x::Variable) = x
 
+# TODO make this work on nested Exprs.
 function insert!(b::Block, idx::Integer, x)
   insert!(basicblock(b).stmts, idx, Statement(x))
   for i = 1:length(b.ir.defs)

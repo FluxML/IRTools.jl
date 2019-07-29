@@ -84,10 +84,11 @@ end
 function splicearg!(meta, ir::IR, name)
   args = arguments(ir)
   push!(ir.defs, (1, -1))
-  pushfirst!(args, var(length(ir.defs)))
+  arg = var(length(ir.defs))
+  pushfirst!(args, arg)
   pushfirst!(ir.blocks[1].argtypes, Any)
   pushfirst!(meta.code.slotnames, name)
-  return ir
+  return arg
 end
 
 function update!(meta, ir::Core.Compiler.IRCode)
