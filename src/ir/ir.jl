@@ -8,6 +8,12 @@ import Base: push!, insert!, getindex, setindex!, iterate, length
 struct Undefined end
 const undef = Undefined()
 
+"""
+    Variable(N)
+    var(N)
+
+Represents an SSA variable. Primarily used as an index into `IR` objects.
+"""
 struct Variable
   id::Int
 end
@@ -34,6 +40,17 @@ arguments(b::Branch) = b.args
 
 const unreachable = Branch(nothing, 0, [])
 
+"""
+    Statement(expr; type, line)
+
+Represents a single statement in the IR. The `expr` is a non-nested Julia
+expression (`Expr`). `type` represents the return type of the statement; in most
+cases this can be ignored and defaults to `Any`. `line` represents the source
+location of the statement; it is an integer index into the IR's line table.
+
+As a convenience, if `expr` is already a statement, the new statement will
+inherit its type and line number.
+"""
 struct Statement
   expr::Any
   type::Any
@@ -60,6 +77,25 @@ BasicBlock(stmts = []) = BasicBlock(stmts, [], [], Branch[])
 branches(bb::BasicBlock) = bb.branches
 arguments(bb::BasicBlock) = bb.args
 
+"""
+    IR()
+    IR(metadata; slots = false)
+
+Represents a fragment of SSA-form code.
+
+IR can be constructed from scratch, but more usually an existing Julia method is
+used as a starting point (see [`meta`](@ref) for how to get metadata for a
+method). The `slots` argument determines whether the IR preserves mutable
+variable slots; by default, these are converted to SSA-style variables.
+
+As a shortcut, IR can be constructed directly from a type signature, e.g.
+
+    julia> IR(typeof(gcd), Int, Int)
+    1: (%1, %2, %3)
+      %4 = %2 == 0
+      br 4 unless %4
+    2: ...
+"""
 struct IR
   defs::Vector{Tuple{Int,Int}}
   blocks::Vector{BasicBlock}
@@ -118,11 +154,47 @@ end
 
 branches(b::Block, c::Integer) = branches(b, block(b.ir, c))
 
+"""
+    returnvalue(block)
+
+Retreive the return value of a block.
+
+    julia> f(x) = 3x + 2;
+
+    julia> IRTools.block(@code_ir(f(1)), 1)
+    1: (%1, %2)
+      %3 = 3 * %2
+      %4 = %3 + 2
+      return %4
+
+    julia> IRTools.returnvalue(ans)
+    %4
+"""
 function returnvalue(b::Block)
   isreturn(branches(b)[end]) || error("Block does not return")
   return branches(b)[end].args[1]
 end
 
+"""
+    argument!(block, [value, type])
+
+Create a new argument for the given block / IR fragment, and return the variable
+representing the argument.
+
+    julia> ir = IR();
+
+    julia> argument!(ir)
+    %1
+
+    julia> ir
+    1: (%1)
+
+The `at` keyword argument can be used to specify where the new argument should
+go; by default it is appended to the end of the argument list.
+
+If there are branches to this block, they will be updated to pass `value`
+(`nothing` by default) as an argument.
+"""
 function argument!(b::Block, value = nothing, type = Any; insert = true, at = length(arguments(b))+1)
   if at < length(arguments(b))
     for i = 1:length(b.ir.defs)
@@ -181,6 +253,25 @@ function blockidx(ir::IR, x::Variable)
   block(ir, b), i
 end
 
+"""
+    haskey(ir, var)
+
+Check whether the variable `var` was defined in `ir`.
+
+    julia> f(x) = 3x + 2;
+
+    julia> ir = @code_ir f(1)
+    1: (%1, %2)
+      %3 = 3 * %2
+      %4 = %3 + 2
+      return %4
+
+    julia> haskey(ir, var(3))
+    true
+
+    julia> haskey(ir, var(7))
+    false
+"""
 function Base.haskey(ir::IR, x::Variable)
   b, i = get(ir.defs, x.id, (-1, -1))
   return i > 0
@@ -240,6 +331,24 @@ end
 
 predecessors(b::Block) = [c for c in blocks(b.ir) if b in successors(c)]
 
+"""
+    keys(ir)
+
+Return the variable keys for all statements defined in `ir`.
+
+    julia> f(x) = 3x + 2;
+
+    julia> ir = @code_ir f(1)
+    1: (%1, %2)
+      %3 = 3 * %2
+      %4 = %3 + 2
+      return %4
+
+    julia> keys(ir)
+    2-element Array{IRTools.Variable,1}:
+     %3
+     %4
+"""
 Base.keys(b::Block) = first.(sort([Variable(i) => v for (i, v) in enumerate(b.ir.defs) if v[1] == b.id && v[2] > 0], by = x->x[2]))
 
 function iterate(b::Block, (ks, i) = (keys(b), 1))
@@ -259,6 +368,26 @@ applyex(f, x::Expr) =
   Expr(x.head, [x isa Expr ? f(x) : x for x in x.args]...)
 applyex(f, x::Statement) = Statement(x, expr = applyex(f, x.expr))
 
+"""
+    push!(ir, x)
+
+Append the statement or expression `x` to the IR or block `ir`, returning the
+new variable. If `x` is a nested expression, it will be expanded into multiple
+statements. See also [`pushfirst!`](@ref), [`insert!`](@ref).
+
+    julia> ir = IR();
+
+    julia> x = argument!(ir)
+    %1
+
+    julia> push!(ir, :(3*\$x+2))
+    %3
+
+    julia> ir
+    1: (%1)
+      %2 = 3 * %1
+      %3 = %2 + 2
+"""
 function push!(b::Block, x::Statement)
   x = applyex(a -> push!(b, Statement(x, expr = a)), x)
   x = Statement(x)
@@ -288,8 +417,60 @@ Base.pushfirst!(b::Block, x) = insert!(b, 1, x)
 
 push!(ir::IR, x) = push!(block(ir, length(ir.blocks)), x)
 
+"""
+    pushfirst!(ir, x)
+
+Insert the expression or statement `x` into the given IR or block at the
+beginning, returning the new variable. See also [`push!`](@ref),
+[`insert!`](@ref).
+
+    julia> f(x) = 3x + 2
+    f (generic function with 1 method)
+
+    julia> ir = @code_ir f(1)
+    1: (%1, %2)
+      %3 = 3 * %2
+      %4 = %3 + 2
+      return %4
+
+    julia> pushfirst!(ir, :(println("hello, world")))
+    %5
+
+    julia> ir
+    1: (%1, %2)
+      %5 = println("hello, world")
+      %3 = 3 * %2
+      %4 = %3 + 2
+      return %4
+"""
 Base.pushfirst!(ir::IR, x) = pushfirst!(block(ir, 1), x)
 
+"""
+    insert!(ir, v, x)
+
+Insert the expression or statement `x` into the given IR, just before the
+variable `v` is defined, returning the new variable for `x`. See also
+[`insertafter!`](@ref).
+
+    julia> f(x) = 3x + 2
+    f (generic function with 1 method)
+
+    julia> ir = @code_ir f(1)
+    1: (%1, %2)
+      %3 = 3 * %2
+      %4 = %3 + 2
+      return %4
+
+    julia> insert!(ir, IRTools.var(4), :(println("hello, world")))
+    %5
+
+    julia> ir
+    1: (%1, %2)
+      %3 = 3 * %2
+      %5 = println("hello, world")
+      %4 = %3 + 2
+      return %4
+"""
 function insert!(ir::IR, i::Variable, x; after = false)
   if after && ir.defs[i.id][2] < 0
     pushfirst!(block(ir, ir.defs[i.id][1]), x)
@@ -299,8 +480,46 @@ function insert!(ir::IR, i::Variable, x; after = false)
   end
 end
 
+"""
+    insertafter!(ir, v, x)
+
+Insert the expression or statement `x` into the given IR, just before the
+variable `v` is defined, returning the new variable for `x`. See also
+[`insert!`](@ref).
+
+    julia> f(x) = 3x + 2
+    f (generic function with 1 method)
+
+    julia> ir = @code_ir f(1)
+    1: (%1, %2)
+      %3 = 3 * %2
+      %4 = %3 + 2
+      return %4
+
+    julia> IRTools.insertafter!(ir, IRTools.var(4), :(println("hello, world")))
+    %5
+
+    julia> ir
+    1: (%1, %2)
+      %3 = 3 * %2
+      %4 = %3 + 2
+      %5 = println("hello, world")
+      return %4
+"""
 insertafter!(ir, i, x) = insert!(ir, i, x, after=true)
 
+"""
+    empty(ir)
+
+Create an empty IR fragment based on the given IR. The line number table and
+any metadata are preserved from the original IR.
+
+    julia> ir = empty(@code_ir gcd(10, 5))
+    1:
+
+    julia> ir.meta
+    Metadata for gcd(a::T, b::T) where T<:Union{Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8} in Base at intfuncs.jl:31
+"""
 Base.empty(ir::IR) = IR(copy(ir.lines), meta = ir.meta)
 
 function Base.permute!(ir::IR, perm::AbstractVector)
@@ -326,6 +545,28 @@ struct NewVariable
   id::Int
 end
 
+"""
+    Pipe(ir)
+
+In general, it is not efficient to insert statements into IR; only appending is
+fast, for the same reason as with `Vector`s.
+
+For this reason, the `Pipe` construct makes it convenient to incrementally build
+an new IR fragment from an old one, making efficient modifications as you go.
+
+The general pattern looks like:
+
+    pr = IRTools.Pipe(ir)
+    for (v, st) in pr
+      # do stuff
+    end
+    ir = IRTools.finish(pr)
+
+Iterating over `pr` is just like iterating over `ir`, except that within the
+loop, inserting and deleting statements in `pr` around `v` is efficient. Later,
+`finish(pr)` converts it back to a normal IR fragment (in this case just a plain
+copy of the original).
+"""
 mutable struct Pipe
   from::IR
   to::IR

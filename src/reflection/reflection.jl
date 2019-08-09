@@ -40,6 +40,17 @@ define_typeinf_code2() = isprecompiling() ||
     return frame
 end
 
+"""
+    typed_meta(Tuple{...})
+
+Same as [`@meta`](@ref), but represents the method after type inference. IR
+constructed with typed metadata will have type annotations.
+
+See also [`@typed_meta`](@ref).
+
+    julia> IRTools.typed_meta(Tuple{typeof(gcd),Int,Int})
+    Typed metadata for gcd(a::T, b::T) where T<:Union{Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8} in Base at intfuncs.jl:31
+"""
 function typed_meta(T; world = worldcounter(), optimize = false)
   F = T.parameters[1]
   F isa DataType && (F.name.module === Core.Compiler ||
@@ -75,6 +86,17 @@ end
 untvar(t::TypeVar) = t.ub
 untvar(x) = x
 
+"""
+    meta(Tuple{...})
+
+Construct metadata for a given method signature. Metadata can then be used to
+construct [`IR`](@ref) or used to perform other reflection on the method.
+
+See also [`@meta`](@ref), [`typed_meta`](@ref).
+
+    julia> IRTools.meta(Tuple{typeof(gcd),Int,Int})
+    Metadata for gcd(a::T, b::T) where T<:Union{Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8} in Base at intfuncs.jl:31
+"""
 function meta(T; world = worldcounter())
   F = T.parameters[1]
   F == typeof(invoke) && return invoke_meta(T; world = world)
@@ -119,12 +141,28 @@ function invoke_meta(T; world)
   return Meta(m.method, m.code, m.nargs+2, m.sparams)
 end
 
+"""
+    @meta f(args...)
+
+Convenience macro for retrieving metadata without writing a full type signature.
+
+    julia> IRTools.@meta gcd(10, 5)
+    Metadata for gcd(a::T, b::T) where T<:Union{Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8} in Base at intfuncs.jl:31
+"""
 macro meta(ex)
   isexpr(ex, :call) || error("@meta f(args...)")
   f, args = ex.args[1], ex.args[2:end]
   :(meta(typesof($(esc.((f, args...))...))))
 end
 
+"""
+    @typed_meta f(args...)
+
+Convenience macro for retrieving typed metadata without writing a full type signature.
+
+    julia> IRTools.@typed_meta gcd(10, 5)
+    Typed metadata for gcd(a::T, b::T) where T<:Union{Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8} in Base at intfuncs.jl:31
+"""
 macro typed_meta(ex)
   isexpr(ex, :call) || error("@meta f(args...)")
   f, args = ex.args[1], ex.args[2:end]
@@ -142,6 +180,18 @@ function code_irm(ex)
   :(code_ir($(esc(f)), typesof($(esc.(args)...))))
 end
 
+"""
+    @code_ir f(args...)
+
+Convenience macro similar to `@code_lowered` or `@code_typed`. Retrieves the IR
+for the given function call.
+
+    julia> @code_ir gcd(10, 5)
+    1: (%1, %2, %3)
+      %4 = %2 == 0
+      br 4 unless %4
+    2: ...
+"""
 macro code_ir(ex)
   code_irm(ex)
 end
