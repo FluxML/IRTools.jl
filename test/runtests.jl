@@ -1,4 +1,4 @@
-using IRTools, Test
+using IRTools, Documenter, Test
 
 @testset "IRTools" begin
 
@@ -9,5 +9,7 @@ end
 @testset "Compiler" begin
   include("compiler.jl")
 end
+
+doctest(IRTools)
 
 end

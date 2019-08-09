@@ -7,3 +7,10 @@ version = "0.2.2"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[extras]
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test", "Documenter"]
