@@ -1,32 +1,31 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Home · IRTools</title><link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/4.2.0/normalize.min.css" rel="stylesheet" type="text/css"/><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.6.3/css/font-awesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/default.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.2.0/require.min.js" data-main="assets/documenter.js"></script><script src="siteinfo.js"></script><script src="../versions.js"></script><link href="assets/documenter.css" rel="stylesheet" type="text/css"/></head><body><nav class="toc"><h1>IRTools</h1><select id="version-selector" onChange="window.location.href=this.value" style="visibility: hidden"></select><form class="search" id="search-form" action="search/"><input id="search-query" name="q" type="text" placeholder="Search docs"/></form><ul><li class="current"><a class="toctext" href>Home</a><ul class="internal"><li><a class="toctext" href="#Reading-the-IR-1">Reading the IR</a></li><li><a class="toctext" href="#Manipulating-IR-1">Manipulating IR</a></li><li><a class="toctext" href="#IR-Internals-1">IR Internals</a></li></ul></li><li><a class="toctext" href="dynamo/">Dynamo</a></li></ul></nav><article id="docs"><header><nav><ul><li><a href>Home</a></li></ul><a class="edit-page" href="https://github.com/MikeInnes/IRTools.jl/blob/master/docs/src/index.md"><span class="fa"></span> Edit on GitHub</a></nav><hr/><div id="topbar"><span>Home</span><a class="fa fa-bars" href="#"></a></div></header><h1><a class="nav-anchor" id="IRTools-1" href="#IRTools-1">IRTools</a></h1><p>IRTools provides an IR format with several aims. The idea is to be:</p><ul><li>Expressive enough to represent all parts of Julia&#39;s IR pipeline, from lowered code to typed SSA IR;</li><li>Easy to manipulate, like an AST, so that people can do powerful macro-like transformations of code;</li><li><em>safe</em> – so no segfaults if you misplace an variable somewhere.</li></ul><p>Note that before even attempting to understand IRTools, you should have a good handle on Julia&#39;s <a href="https://docs.julialang.org/en/v1/manual/metaprogramming/">metaprogramming and macros</a>.</p><h2><a class="nav-anchor" id="Reading-the-IR-1" href="#Reading-the-IR-1">Reading the IR</a></h2><h3><a class="nav-anchor" id="IR-Basics-1" href="#IR-Basics-1">IR Basics</a></h3><p>It&#39;s easiest to understand the IRTools IR by seeing some examples. We provide the macro <code>@code_ir</code> which behaves much like <code>@code_lowered</code>.</p><pre><code class="language-julia">julia&gt; using IRTools
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Home · IRTools</title><link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/4.2.0/normalize.min.css" rel="stylesheet" type="text/css"/><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.6.3/css/font-awesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/default.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.2.0/require.min.js" data-main="assets/documenter.js"></script><script src="siteinfo.js"></script><script src="../versions.js"></script><link href="assets/documenter.css" rel="stylesheet" type="text/css"/></head><body><nav class="toc"><h1>IRTools</h1><select id="version-selector" onChange="window.location.href=this.value" style="visibility: hidden"></select><form class="search" id="search-form" action="search/"><input id="search-query" name="q" type="text" placeholder="Search docs"/></form><ul><li class="current"><a class="toctext" href>Home</a><ul class="internal"><li><a class="toctext" href="#Reading-the-IR-1">Reading the IR</a></li><li><a class="toctext" href="#Manipulating-IR-1">Manipulating IR</a></li><li><a class="toctext" href="#Evaluating-IR-1">Evaluating IR</a></li></ul></li><li><a class="toctext" href="dynamo/">Dynamo</a></li><li><a class="toctext" href="reference/">Reference</a></li></ul></nav><article id="docs"><header><nav><ul><li><a href>Home</a></li></ul><a class="edit-page" href="https://github.com/MikeInnes/IRTools.jl/blob/master/docs/src/index.md"><span class="fa"></span> Edit on GitHub</a></nav><hr/><div id="topbar"><span>Home</span><a class="fa fa-bars" href="#"></a></div></header><h1><a class="nav-anchor" id="IRTools-1" href="#IRTools-1">IRTools</a></h1><p>IRTools provides an IR format with several aims. The idea is to be:</p><ul><li>Expressive enough to represent all parts of Julia&#39;s IR pipeline, from lowered code to typed SSA IR;</li><li>Easy to manipulate, like an AST, so that people can do powerful macro-like transformations of code;</li><li><em>safe</em> – so no segfaults if you misplace an variable somewhere.</li></ul><p>Note that before even attempting to understand IRTools, you should have a good handle on Julia&#39;s <a href="https://docs.julialang.org/en/v1/manual/metaprogramming/">metaprogramming and macros</a>.</p><h2><a class="nav-anchor" id="Reading-the-IR-1" href="#Reading-the-IR-1">Reading the IR</a></h2><h3><a class="nav-anchor" id="IR-Basics-1" href="#IR-Basics-1">IR Basics</a></h3><p>It&#39;s easiest to understand the IRTools IR by seeing some examples. We provide the macro <code>@code_ir</code> which behaves much like <code>@code_lowered</code>.</p><pre><code class="language-julia-repl">julia&gt; using IRTools
 
 julia&gt; f(x) = x+x
 f (generic function with 1 method)
 
 julia&gt; @code_ir f(1)
-1:
-  %1 = _2 + _2
-  return %1</code></pre><p>First things first. Arguments are numbered, and the first argument represents the function <code>f</code> itself, so <code>x</code> is presented in the IR as <code>_2</code>. Intermediate variables (<code>%1</code>, <code>%2</code>, <code>%3</code> ...) are also numbered. IR will usually have a <em>lot</em> of these, which is why numbers make more sense than names.</p><p>The main reason that there are a lot of intermediates is that, in IR, we only allow one function call per line. You can see how a nested Julia expression becomes a sequence of single instructions, kind of like an assembly language.</p><pre><code class="language-julia">julia&gt; f(x) = 3x*x + 2x + 1
+1: (%1, %2)
+  %3 = %2 + %2
+  return %3</code></pre><p>First things first. All variables are numbered (<code>%1</code>, <code>%2</code>, <code>%3</code> ...). IR will usually have a <em>lot</em> of these, which is why numbers make more sense than names. At the start of the IR is a list of arguments that are provided as input to the function, <code>(%1, %2)</code>. You&#39;ll notice there&#39;s an extra argument, <code>%1</code>, that&#39;s ignored here; this represents the function <code>f</code> itself, which is used by callable objects and closures.</p><p>The main reason that there are a lot of intermediates is that, in IR, we only allow one function call per line. You can see how a nested Julia expression becomes a sequence of single instructions, kind of like an assembly language.</p><pre><code class="language-julia-repl">julia&gt; f(x) = 3x*x + 2x + 1
 f (generic function with 1 method)
 
 julia&gt; @code_ir f(1)
-1:
-  %1 = 3 * _2
-  %2 = %1 * _2
-  %3 = 2 * _2
-  %4 = %2 + %3 + 1
-  return %4</code></pre><p>While this looks noisy and is at first a little hard to read, it&#39;s usually a helpful thing to do. IR is largely designed to be read by programs, rather than by humans, where it&#39;s usually easier to look at one instruction at a time.</p><p>Beyond that, this is essentially just very verbosely-written Julia code.</p><h3><a class="nav-anchor" id="Control-Flow-1" href="#Control-Flow-1">Control Flow</a></h3><p>The most significant difference between <code>IR</code> and <code>Expr</code> is how control flow is handled. There are no such thing as nested if statements, while loops and so on in IR, only <em>branches</em>.</p><pre><code class="language-julia">julia&gt; f(x) = x &gt; 0 ? x : 0
+1: (%1, %2)
+  %3 = 3 * %2
+  %4 = %3 * %2
+  %5 = 2 * %2
+  %6 = %4 + %5 + 1
+  return %6</code></pre><p>While this looks noisy and is at first a little hard to read, it&#39;s usually a helpful thing to do. IR is largely designed to be read by programs, rather than by humans, where it&#39;s usually easier to look at one instruction at a time.</p><p>Beyond that, this is essentially just very verbosely-written Julia code.</p><h3><a class="nav-anchor" id="Control-Flow-1" href="#Control-Flow-1">Control Flow</a></h3><p>The most significant difference between <code>IR</code> and <code>Expr</code> is how control flow is handled. There are no such thing as nested if statements, while loops and so on in IR, only <em>branches</em>.</p><pre><code class="language-julia-repl">julia&gt; f(x) = x &gt; 0 ? x : 0
 f (generic function with 1 method)
 
 julia&gt; @code_ir f(1)
-1:
-  %1 = _2 &gt; 0
-  br 3 unless %1
+1: (%1, %2)
+  %3 = %2 &gt; 0
+  br 2 unless %3
+  return %2
 2:
-  return _2
-3:
-  return 0</code></pre><p>The block labels <code>1:</code>, <code>2:</code> etc and the branch <code>br 3 unless %1</code> can be thought of as a version of <code>@label</code> and <code>@goto</code>. In this case the branch is conditional on the test <code>%1 = x &gt; 0</code>; if that&#39;s true we&#39;ll skip the branch, move on to the label <code>2</code> and return <code>x</code>.</p><p>IR is composed of a series of <em>basic blocks</em> that jump between each other like this. A basic block always starts with a label and ends with (optional) branches. No branches can appear in the middle of a basic block; that would just divide the block in two. Any structured control flow, however complex, can be turned into a series of blocks like this.</p><p>Here&#39;s a more interesting example.</p><pre><code class="language-julia">julia&gt; function f(x)
+  return 0</code></pre><p>The block labels <code>1:</code>, <code>2:</code> etc and the branch <code>br 3 unless %3</code> can be thought of as a version of <code>@label</code> and <code>@goto</code>. In this case the branch is conditional on the test <code>%3 = x &gt; 0</code>; if that&#39;s true we&#39;ll skip the branch, move on to the label <code>2</code> and return <code>x</code>.</p><p>IR is composed of a series of <em>basic blocks</em> that jump between each other like this. A basic block always starts with a label and ends with (optional) branches. No branches can appear in the middle of a basic block; that would just divide the block in two. Any structured control flow, however complex, can be turned into a series of blocks like this.</p><p>Here&#39;s a more interesting example.</p><pre><code class="language-julia-repl">julia&gt; function f(x)
          if x &lt; 0
            x = -x
          end
@@ -35,14 +34,15 @@ julia&gt; @code_ir f(1)
 f (generic function with 1 method)
 
 julia&gt; @code_ir f(1)
-1:
-  %1 = _2 &lt; 0
-  br 3 (_2) unless %1
+1: (%1, %2)
+  %3 = %2 &lt; 0
+  br 3 (%2) unless %3
+  br 2
 2:
-  %2 = -_2
-  br 3 (%2)
-3: (%3)
-  return %3</code></pre><p>Basic blocks are actually like mini-functions, and they accept a series of arguments. In this case block <code>3</code> takes an argument called <code>%3</code> that tells it what to return. If you follow the branches as if they were function calls, you&#39;ll see that this IR behaves the same the same as the code we wrote down.</p><p>Why not just write this as <code>_2 = - _2</code>? It&#39;s important to understand that variables in SSA-form IR are <em>immutable</em>, in the same sense that variables in functional languages are. For this reason you&#39;ll never see a statement like <code>%2 = %2 + 1</code>. This again makes analysing IR programmatically a lot easier, because when code uses <code>%2</code> you know exactly which definition that refers to.</p><p>Loops work this way too: they are visible in the IR by branches that jump backwards, i.e. the <code>br 2</code> here.</p><pre><code class="language-julia">julia&gt; function pow(x, n)
+  %4 = -%2
+  br 3 (%4)
+3: (%5)
+  return %5</code></pre><p>Basic blocks are actually like mini-functions, and they accept a series of arguments. In this case block <code>3</code> takes an argument called <code>%5</code> that tells it what to return. If you follow the branches as if they were function calls, you&#39;ll see that this IR behaves the same the same as the code we wrote down.</p><p>Why not just write this as <code>%2 = -%2</code>? It&#39;s important to understand that variables in SSA-form IR are <em>immutable</em>, in the same sense that variables in functional languages are. For this reason you&#39;ll never see a statement like <code>%2 = %2 + 1</code>. This again makes analysing IR programmatically a lot easier, because when code uses <code>%2</code> you know exactly which definition that refers to.</p><p>Loops work this way too: they are visible in the IR by branches that jump backwards, i.e. the <code>br 2</code> here. Variables that were modified inside the loop in the original code are explicitly passed between blocks.</p><pre><code class="language-julia-repl">julia&gt; function pow(x, n)
          r = 1
          while n &gt; 0
            n -= 1
@@ -53,69 +53,115 @@ julia&gt; @code_ir f(1)
 pow (generic function with 1 method)
 
 julia&gt; @code_ir pow(1, 1)
-1:
-  %1 = nothing
-  br 2 (1, _3)
-2: (%2, %3)
-  %4 = %3 &gt; 0
-  br 4 unless %4
+1: (%1, %2, %3)
+  br 2 (%3, 1)
+2: (%4, %5)
+  %6 = %4 &gt; 0
+  br 4 unless %6
+  br 3
 3:
-  %5 = %3 - 1
-  %6 = %2 * _2
-  br 2 (%6, %5)
+  %7 = %4 - 1
+  %8 = %5 * %2
+  br 2 (%7, %8)
 4:
-  return %2</code></pre><h2><a class="nav-anchor" id="Manipulating-IR-1" href="#Manipulating-IR-1">Manipulating IR</a></h2><h3><a class="nav-anchor" id="Statements-1" href="#Statements-1">Statements</a></h3><p>It&#39;s easy to get started by creating an empty fragment of IR.</p><pre><code class="language-julia">julia&gt; using IRTools: IR, Argument, var
+  return %5</code></pre><h2><a class="nav-anchor" id="Manipulating-IR-1" href="#Manipulating-IR-1">Manipulating IR</a></h2><h3><a class="nav-anchor" id="Statements-1" href="#Statements-1">Statements</a></h3><p>It&#39;s easy to get started by creating an empty fragment of IR.</p><pre><code class="language-julia-repl">julia&gt; using IRTools: IR, var, argument!, xcall
 
 julia&gt; ir = IR()
-1:</code></pre><p>We can push new statements into the IR.</p><pre><code class="language-julia">julia&gt; x = arg(2)
-_2
-
-julia&gt; x2 = push!(ir, :($x*$x))
+1:</code></pre><p>We can push new statements into the IR. <code>push!</code> returns a variable name that we can reuse later on.</p><pre><code class="language-julia-repl">julia&gt; x = argument!(ir)
 %1
 
-julia&gt; ir
-1:
-  %1 = _2 * _2</code></pre><p><code>push!</code> returns a variable name that we can reuse later on.</p><pre><code class="language-julia">julia&gt; push!(ir, :(3*$x2 + 2*$x + 1))
-%5
+julia&gt; x2 = push!(ir, xcall(:*, x, x))
+%2
 
 julia&gt; ir
-1:
-  %1 = _2 * _2
-  %2 = 3 * %1
-  %3 = 2 * _2
-  %4 = %2 + %3 + 1</code></pre><p>The IR can be viewed as a mapping from variables to statements, and indexing and iteration are consistent with that.</p><pre><code class="language-julia">julia&gt; ir[var(2)]
-IRTools.Statement(:(3 * %1), Any, 0)
+1: (%1)
+  %2 = %1 * %1</code></pre><p>The IR can be viewed as a mapping from variables to statements, and indexing and iteration are consistent with that.</p><pre><code class="language-julia">julia&gt; ir[var(2)]
+IRTools.Statement(:(%1 * %1), Any, 0)
 
 julia&gt; collect(ir)
-4-element Array{Any,1}:
- (%1, IRTools.Statement(:(_2 * _2), Any, 0))
- (%2, IRTools.Statement(:(3 * %1), Any, 0))
- (%3, IRTools.Statement(:(2 * _2), Any, 0))
- (%4, IRTools.Statement(:(%2 + %3 + 1), Any, 0))</code></pre><p>A <code>Statement</code> consists of an expression, a type (usually <code>Any</code> unless you&#39;re explicitly working with typed IR) and a line number. If you work directly with expressions IRTools will automatically wrap them with <code>Statement(x)</code>.</p><p>There are a few other functions that do obvious things: <code>pushfirst!</code>, <code>insert!</code>, <code>insertafter!</code>, and <code>delete!</code>.</p><h3><a class="nav-anchor" id="Blocks-1" href="#Blocks-1">Blocks</a></h3><p>In most cases you won&#39;t build IR from scratch, but will work from a fragment from an existing function.</p><pre><code class="language-julia">julia&gt; ir = @code_ir pow(1, 1)
-1:
-  %1 = nothing
-  br 2 (1, _3)
-2: (%2, %3)
-  %4 = %3 &gt; 0
-  br 4 unless %4
+1-element Array{Any,1}:
+ %2 =&gt; IRTools.Statement(:(%1 * %1), Any, 0)</code></pre><p>A <code>Statement</code> consists of an expression, a type (usually <code>Any</code> unless you&#39;re explicitly working with typed IR) and a line number. If you work directly with expressions IRTools will automatically wrap them with <code>Statement(x)</code>.</p><p>There are a few other functions that do obvious things: <code>pushfirst!</code>, <code>insert!</code>, <code>insertafter!</code>, and <code>delete!</code>.</p><p>In most cases you won&#39;t build IR from scratch, but will start from an existing function and modify its IR.</p><pre><code class="language-julia-repl">julia&gt; ir = @code_ir pow(1, 1)
+1: (%1, %2, %3)
+  br 2 (%3, 1)
+2: (%4, %5)
+  %6 = %4 &gt; 0
+  br 4 unless %6
+  br 3
 3:
-  %5 = %3 - 1
-  %6 = %2 * _2
-  br 2 (%6, %5)
+  %7 = %4 - 1
+  %8 = %5 * %2
+  br 2 (%7, %8)
 4:
-  return %2</code></pre><p>You can work with a block at a time with <code>block(ir, n)</code> (all of them with <code>blocks(ir)</code>). Blocks similarly support functions like <code>push!</code>.</p><pre><code class="language-julia">julia&gt; using IRTools: block
+  return %5</code></pre><h3><a class="nav-anchor" id="Blocks-1" href="#Blocks-1">Blocks</a></h3><p>You can work with a block at a time with <code>block(ir, n)</code> (all of them with <code>blocks(ir)</code>). Blocks similarly support functions like <code>push!</code>.</p><pre><code class="language-julia-repl">julia&gt; using IRTools: block
 
 julia&gt; block(ir, 2)
-2: (%2, %3)
-  %4 = %3 &gt; 0
-  br 4 unless %4</code></pre><h2><a class="nav-anchor" id="IR-Internals-1" href="#IR-Internals-1">IR Internals</a></h2><p>Internally the IR data structure is quite simple, and it&#39;s worth looking at the source code for more details. Each IR fragment is essentially a list of basic blocks.</p><pre><code class="language-julia">julia&gt; ir = @code_ir pow(1, 1);
+2: (%4, %5)
+  %6 = %4 &gt; 0
+  br 4 unless %6
+  br 3</code></pre><h2><a class="nav-anchor" id="Evaluating-IR-1" href="#Evaluating-IR-1">Evaluating IR</a></h2><p>For testing purposes, you can run IR using <code>IRTools.eval</code>.</p><pre><code class="language-julia-repl">julia&gt; using IRTools
 
-julia&gt; ir.blocks[1]
-IRTools.BasicBlock(IRTools.Statement[Statement(nothing, Nothing, 0)], IRTools.Variable[], IRTools.Branch[br 2 (1, _3)])</code></pre><p>Each block is a list of statements, argument names and branches.</p><p>Note that no variable names like <code>%2</code> are set here. This is defined by a mapping at the IR level:</p><pre><code class="language-julia">julia&gt; ir.defs
-6-element Array{Tuple{Int64,Int64},1}:
- (1, 1)
- (-1, -1)
- (-1, -1)
- (2, 3)
- (3, 1)
- (3, 2)</code></pre><p>SSA values are looked up from this table, in order, so <code>%4</code> refers to statement 3 of block 2 and so on. Values listed as <code>(-1, -1)</code> have been deleted.</p><footer><hr/><a class="next" href="dynamo/"><span class="direction">Next</span><span class="title">Dynamo</span></a></footer></article></body></html>
+julia&gt; using IRTools: IR, argument!, return!, xcall, func
+
+julia&gt; ir = IR();
+
+julia&gt; x = argument!(ir);
+
+julia&gt; y = push!(ir, xcall(:*, x, x));
+
+julia&gt; return!(ir, y)
+1: (%1)
+  %2 = %1 * %1
+  return %2
+
+julia&gt; IRTools.eval(ir, 5)
+25</code></pre><p>More generally, you can turn an IR fragment into an anonymous function, useful not just for evaluation but also to see the compiler&#39;s <code>@code_typed</code>, <code>@code_llvm</code> output etc.</p><pre><code class="language-julia">julia&gt; f = func(ir)
+##422 (generic function with 1 method)
+
+julia&gt; @code_typed f(5)
+CodeInfo(
+1 ─ %1 = Base.mul_int(@_2, @_2)::Int64
+└──      return %1
+) =&gt; Int64
+
+julia&gt; @code_llvm f(5)
+;  @ /Users/mike/projects/flux/IRTools/src/eval.jl:18 within `##422&#39;
+define i64 @&quot;julia_##422_17676&quot;(i64) {
+top:
+; ┌ @ int.jl:54 within `*&#39;
+   %1 = mul i64 %0, %0
+   ret i64 %1
+; └
+}</code></pre><p>The same works for IR taken from existing functions.</p><pre><code class="language-julia-repl">julia&gt; using IRTools: IR, @code_ir, xcall, func, var
+
+julia&gt; function pow(x, n)
+         r = 1
+         while n &gt; 0
+           n -= 1
+           r *= x
+         end
+         return r
+       end
+pow (generic function with 1 method)
+
+julia&gt; ir = @code_ir pow(2, 3)
+1: (%1, %2, %3)
+  br 2 (%3, 1)
+2: (%4, %5)
+  %6 = %4 &gt; 0
+  br 4 unless %6
+  br 3
+3:
+  %7 = %4 - 1
+  %8 = %5 * %2
+  br 2 (%7, %8)
+4:
+  return %5
+
+
+julia&gt; ir[var(8)] = xcall(:+, var(5), var(2))
+:(%5 + %2)
+
+julia&gt; mul = func(ir);
+
+julia&gt; mul(nothing, 10, 3)
+31</code></pre><footer><hr/><a class="next" href="dynamo/"><span class="direction">Next</span><span class="title">Dynamo</span></a></footer></article></body></html>
