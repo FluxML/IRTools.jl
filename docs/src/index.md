@@ -64,7 +64,7 @@ julia> @code_ir f(1)
   return 0
 ```
 
-The block labels `1:`, `2:` etc and the branch `br 3 unless %1` can be thought of as a version of `@label` and `@goto`. In this case the branch is conditional on the test `%1 = x > 0`; if that's true we'll skip the branch, move on to the label `2` and return `x`.
+The block labels `1:`, `2:` etc and the branch `br 3 unless %3` can be thought of as a version of `@label` and `@goto`. In this case the branch is conditional on the test `%3 = x > 0`; if that's true we'll skip the branch, move on to the label `2` and return `x`.
 
 IR is composed of a series of *basic blocks* that jump between each other like this. A basic block always starts with a label and ends with (optional) branches. No branches can appear in the middle of a basic block; that would just divide the block in two. Any structured control flow, however complex, can be turned into a series of blocks like this.
 
@@ -130,38 +130,24 @@ julia> @code_ir pow(1, 1)
 It's easy to get started by creating an empty fragment of IR.
 
 ```jldoctest main
-julia> using IRTools: IR, var, argument!
+julia> using IRTools: IR, var, argument!, xcall
 
 julia> ir = IR()
 1:
 ```
 
-We can push new statements into the IR.
+We can push new statements into the IR. `push!` returns a variable name that we can reuse later on.
 
 ```jldoctest main
 julia> x = argument!(ir)
 %1
 
-julia> x2 = push!(ir, :($x*$x))
+julia> x2 = push!(ir, xcall(:*, x, x))
 %2
 
 julia> ir
 1: (%1)
   %2 = %1 * %1
-```
-
-`push!` returns a variable name that we can reuse later on.
-
-```jldoctest main
-julia> push!(ir, :(3*$x2 + 2*$x + 1))
-%5
-
-julia> ir
-1: (%1)
-  %2 = %1 * %1
-  %3 = 3 * %2
-  %4 = 2 * %1
-  %5 = %3 + %4 + 1
 ```
 
 The IR can be viewed as a mapping from variables to statements, and indexing and iteration are consistent with that.
@@ -171,20 +157,15 @@ julia> ir[var(2)]
 IRTools.Statement(:(%1 * %1), Any, 0)
 
 julia> collect(ir)
-4-element Array{Any,1}:
- %2 => IRTools.Statement(:(%1 * %1), Any, 0)    
- %3 => IRTools.Statement(:(3 * %2), Any, 0)     
- %4 => IRTools.Statement(:(2 * %1), Any, 0)     
- %5 => IRTools.Statement(:(%3 + %4 + 1), Any, 0)
+1-element Array{Any,1}:
+ %2 => IRTools.Statement(:(%1 * %1), Any, 0)
 ```
 
 A `Statement` consists of an expression, a type (usually `Any` unless you're explicitly working with typed IR) and a line number. If you work directly with expressions IRTools will automatically wrap them with `Statement(x)`.
 
 There are a few other functions that do obvious things: `pushfirst!`, `insert!`, `insertafter!`, and `delete!`.
 
-### Blocks
-
-In most cases you won't build IR from scratch, but will work from an existing function.
+In most cases you won't build IR from scratch, but will start from an existing function and modify its IR.
 
 ```jldoctest main
 julia> ir = @code_ir pow(1, 1)
@@ -202,6 +183,8 @@ julia> ir = @code_ir pow(1, 1)
   return %5
 ```
 
+### Blocks
+
 You can work with a block at a time with `block(ir, n)` (all of them with `blocks(ir)`). Blocks similarly support functions like `push!`.
 
 ```jldoctest main
@@ -212,4 +195,92 @@ julia> block(ir, 2)
   %6 = %4 > 0
   br 4 unless %6
   br 3
+```
+
+## Evaluating IR
+
+For testing purposes, you can run IR using `IRTools.eval`.
+
+```jldoctest eval
+julia> using IRTools
+
+julia> using IRTools: IR, argument!, return!, xcall, func
+
+julia> ir = IR();
+
+julia> x = argument!(ir);
+
+julia> y = push!(ir, xcall(:*, x, x));
+
+julia> return!(ir, y)
+1: (%1)
+  %2 = %1 * %1
+  return %2
+
+julia> IRTools.eval(ir, 5)
+25
+```
+
+More generally, you can turn an IR fragment into an anonymous function, useful
+not just for evaluation but also to see the compiler's `@code_typed`,
+`@code_llvm` output etc.
+
+```julia
+julia> f = func(ir)
+##422 (generic function with 1 method)
+
+julia> @code_typed f(5)
+CodeInfo(
+1 ─ %1 = Base.mul_int(@_2, @_2)::Int64
+└──      return %1
+) => Int64
+
+julia> @code_llvm f(5)
+;  @ /Users/mike/projects/flux/IRTools/src/eval.jl:18 within `##422'
+define i64 @"julia_##422_17676"(i64) {
+top:
+; ┌ @ int.jl:54 within `*'
+   %1 = mul i64 %0, %0
+   ret i64 %1
+; └
+}
+```
+
+The same works for IR taken from existing functions.
+
+```jldoctest
+julia> using IRTools: IR, @code_ir, xcall, func, var
+
+julia> function pow(x, n)
+         r = 1
+         while n > 0
+           n -= 1
+           r *= x
+         end
+         return r
+       end
+pow (generic function with 1 method)
+
+julia> ir = @code_ir pow(2, 3)
+1: (%1, %2, %3)
+  br 2 (%3, 1)
+2: (%4, %5)
+  %6 = %4 > 0
+  br 4 unless %6
+  br 3
+3:
+  %7 = %4 - 1
+  %8 = %5 * %2
+  br 2 (%7, %8)
+4:
+  return %5
+
+
+julia> ir[var(8)] = xcall(:+, var(5), var(2))
+:(%5 + %2)
+
+julia> mul = func(ir);
+
+julia> mul(nothing, 10, 3)
+31
 ```

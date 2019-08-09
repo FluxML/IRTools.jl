@@ -28,7 +28,7 @@ function dynamo(f, args...)
   argnames!(m, :args)
   _self = splicearg!(m, ir, Symbol("#self#"))
   prewalk!(x -> x === self ? _self : x, ir)
-  return update!(m, ir)
+  return update!(m.code, ir)
 end
 
 unesc(x) = prewalk(x -> isexpr(x, :escape) ? x.args[1] : x, x)

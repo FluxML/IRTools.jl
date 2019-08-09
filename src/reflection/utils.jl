@@ -91,13 +91,13 @@ function splicearg!(meta, ir::IR, name)
   return arg
 end
 
-function update!(meta, ir::Core.Compiler.IRCode)
-  Core.Compiler.replace_code_newstyle!(meta.code, ir, length(ir.argtypes)-1)
-  meta.code.inferred = false
-  meta.code.ssavaluetypes = length(meta.code.code)
-  slots!(meta.code)
-  fill!(meta.code.slotflags, 0)
-  return meta.code
+function update!(ci::CodeInfo, ir::Core.Compiler.IRCode)
+  Core.Compiler.replace_code_newstyle!(ci, ir, length(ir.argtypes)-1)
+  ci.inferred = false
+  ci.ssavaluetypes = length(ci.code)
+  slots!(ci)
+  fill!(ci.slotflags, 0)
+  return ci
 end
 
 update!(meta, ir::IR) = update!(meta, Core.Compiler.IRCode(slots!(ir)))

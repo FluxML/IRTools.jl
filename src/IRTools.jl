@@ -19,6 +19,7 @@ include("reflection/dynamo.jl")
 include("passes/passes.jl")
 
 include("interpret.jl")
+include("eval.jl")
 
 function __init__()
   define_typeinf_code2()

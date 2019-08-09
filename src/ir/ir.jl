@@ -74,6 +74,8 @@ end
 
 BasicBlock(stmts = []) = BasicBlock(stmts, [], [], Branch[])
 
+Base.copy(bb::BasicBlock) = BasicBlock(copy(bb.stmts), copy(bb.args), copy(bb.argtypes), copy(bb.branches))
+
 branches(bb::BasicBlock) = bb.branches
 arguments(bb::BasicBlock) = bb.args
 
@@ -105,6 +107,8 @@ end
 
 IR(; meta = nothing) = IR([],[BasicBlock()],[],meta)
 IR(lines::Vector{LineInfoNode}; meta = nothing) = IR([],[BasicBlock()],lines,meta)
+
+Base.copy(ir::IR) = IR(copy(ir.defs), copy.(ir.blocks), copy(ir.lines), ir.meta)
 
 length(ir::IR) = sum(x -> x[2] > 0, ir.defs)
 
@@ -372,21 +376,19 @@ applyex(f, x::Statement) = Statement(x, expr = applyex(f, x.expr))
     push!(ir, x)
 
 Append the statement or expression `x` to the IR or block `ir`, returning the
-new variable. If `x` is a nested expression, it will be expanded into multiple
-statements. See also [`pushfirst!`](@ref), [`insert!`](@ref).
+new variable. See also [`pushfirst!`](@ref), [`insert!`](@ref).
 
     julia> ir = IR();
 
     julia> x = argument!(ir)
     %1
 
-    julia> push!(ir, :(3*\$x+2))
-    %3
+    julia> push!(ir, xcall(:*, x, x))
+    %2
 
     julia> ir
     1: (%1)
-      %2 = 3 * %1
-      %3 = %2 + 2
+      %2 = %1 * %1
 """
 function push!(b::Block, x::Statement)
   x = applyex(a -> push!(b, Statement(x, expr = a)), x)
