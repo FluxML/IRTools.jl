@@ -144,7 +144,7 @@ There are two changes here: firstly, walking over all IR statements to look for,
 
 Check it does the transform we wanted:
 
-```jldoctest main
+```julia
 julia> mul_wrapped(a, b) = mul(a, b)
 mul_wrapped (generic function with 1 method)
 

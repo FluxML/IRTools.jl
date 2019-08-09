@@ -152,7 +152,7 @@ julia> ir
 
 The IR can be viewed as a mapping from variables to statements, and indexing and iteration are consistent with that.
 
-```jldoctest main
+```julia
 julia> ir[var(2)]
 IRTools.Statement(:(%1 * %1), Any, 0)
 
