@@ -1,6 +1,5 @@
-using IRTools, Test
+using IRTools, MacroTools, InteractiveUtils, Test
 using IRTools: @dynamo, IR, meta, isexpr, xcall, self, insertafter!, recurse!
-using MacroTools
 
 @dynamo roundtrip(a...) = IR(a...)
 
