@@ -155,13 +155,16 @@ function blockstarts(ci::CodeInfo)
   return sort(unique(bs))
 end
 
+# TODO more informative names, while avoiding clashes.
+slotname(ci, s) = Symbol(:_, s.id)
+
 function IR(ci::CodeInfo, nargs::Integer; meta = nothing)
   bs = blockstarts(ci)
   ir = IR([ci.linetable...], meta = meta)
   _rename = Dict()
   rename(ex) = prewalk(ex) do x
     haskey(_rename, x) && return _rename[x]
-    x isa Core.SlotNumber && return IRTools.Slot(ci.slotnames[x.id])
+    x isa Core.SlotNumber && return IRTools.Slot(slotname(ci, x))
     return x
   end
   for i = 1:nargs

@@ -30,7 +30,7 @@ foo(x) = y = x > 0 ? x + 1 : x - 1
 @test roundtrip(foo, -1) == -2
 @test passthrough(foo, 1) == 2
 
-@test_broken passthrough(() -> [1, 2, 3]) == [1, 2, 3]
+@test passthrough(() -> [1, 2, 3]) == [1, 2, 3]
 
 @dynamo function mullify(a...)
   ir = IR(a...)
