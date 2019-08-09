@@ -55,7 +55,7 @@ end
 
 Here it is:
 
-```julia
+```jldoctest main
 julia> using IRTools: IR, @dynamo
 
 julia> @dynamo roundtrip(a...) = IR(a...)
@@ -71,7 +71,7 @@ Here's how it works: our dynamo gets passed a set of *argument types* `a...`. We
 
 In this case, we can easily check that the transformed code produced by `roundtrip` is identical to the original IR for `mul`.
 
-```julia
+```jldoctest main
 julia> using IRTools: @code_ir
 
 julia> @code_ir mul(2, 3)
@@ -87,29 +87,22 @@ julia> @code_ir roundtrip mul(1, 2)
 
 Now we can recreate our `foo` macro. It's a little more verbose since simple symbols like `*` are resolved to `GlobalRef`s in lowered code, but it's broadly the same as our macro.
 
-```julia
-@dynamo function foo(a...)
-  ir = IR(a...)
-  ir = MacroTools.prewalk(ir) do x
-    x isa GlobalRef && x.name == :(*) && return GlobalRef(Base, :+)
-    return x
-  end
-  return ir
-end
+```jldoctest main
+julia> using MacroTools
+
+julia> @dynamo function foo(a...)
+         ir = IR(a...)
+         ir = MacroTools.prewalk(ir) do x
+           x isa GlobalRef && x.name == :(*) && return GlobalRef(Base, :+)
+           return x
+         end
+         return ir
+       end
 ```
 
 It behaves identically, too.
 
-```julia
-# Check it works
-julia> @code_ir foo mul(5, 10)
-1:
-  %1 = _2 + _3
-  return %1
-
-julia> foo(mul, 5, 10)
-15
-
+```jldoctest main
 julia> foo() do
          10*5
        end
@@ -129,46 +122,46 @@ A key difference between macros and dynamos is that dynamos get passed *function
 
 So what if `foo` actually inserted calls to itself when modifying a function? In other words, `prod([1, 2, 3])` would become `foo(prod, [1, 2, 3])`, and so on for each call inside a function. This lets us get the "dynamic extent" property that we talked about earlier.
 
-```julia
-using IRTools: xcall
+```jldoctest main
+julia> using IRTools: xcall
 
-@dynamo function foo2(a...)
-  ir = IR(a...)
-  ir == nothing && return
-  ir = MacroTools.prewalk(ir) do x
-    x isa GlobalRef && x.name == :(*) && return GlobalRef(Base, :+)
-    return x
-  end
-  for (x, st) in ir
-    isexpr(st.expr, :call) || continue
-    ir[x] = xcall(Main, :foo2, st.expr.args...)
-  end
-  return ir
-end
+julia> @dynamo function foo2(a...)
+         ir = IR(a...)
+         ir == nothing && return
+         ir = MacroTools.prewalk(ir) do x
+           x isa GlobalRef && x.name == :(*) && return GlobalRef(Base, :+)
+           return x
+         end
+         for (x, st) in ir
+           isexpr(st.expr, :call) || continue
+           ir[x] = Expr(:call, foo2, st.expr.args...)
+         end
+         return ir
+       end
 ```
 
 There are two changes here: firstly, walking over all IR statements to look for, and modify, `call` expressions. Secondly we handle the case where `ir == nothing`, which can happen when we hit things like intrinsic functions for which there is no source code. If we return `nothing`, the dynamo will just run that function as usual.
 
 Check it does the transform we wanted:
 
-```julia
+```jldoctest main
 julia> mul_wrapped(a, b) = mul(a, b)
 mul_wrapped (generic function with 1 method)
 
 julia> @code_ir mul_wrapped(5, 10)
 1: (%1, %2, %3)
-  %4 = (Main.mul)(%2, %3)
+  %4 = mul(%2, %3)
   return %4
 
 julia> @code_ir foo2 mul_wrapped(5, 10)
 1: (%1, %2, %3)
-  %4 = (Main.foo2)(Main.mul, %2, %3)
+  %4 = (foo2)(mul, %2, %3)
   return %4
 ```
 
 And that it works as expected:
 
-```julia
+```jldoctest main
 julia> foo() do # Does not work (since there is no literal `*` here)
          mul(5, 10)
        end
