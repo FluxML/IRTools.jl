@@ -180,6 +180,101 @@ julia> foo2() do
 
 This, we have rewritten the `prod` function to actually calculate `sum`, by *internally* rewriting all calls to `*` to instead use `+`.
 
+## Using Dispatch
+
+We can make our `foo2` dynamo simpler in a couple of ways. Firstly, IRTools provides a built-in utility `recurse!` which makes it easy to recurse into code.
+
+```jldoctest main
+julia> using IRTools: recurse!
+
+julia> @dynamo function foo2(a...)
+         ir = IR(a...)
+         ir == nothing && return
+         ir = MacroTools.prewalk(ir) do x
+           x isa GlobalRef && x.name == :(*) && return GlobalRef(Base, :+)
+           return x
+         end
+         recurse!(ir)
+         return ir
+       end
+
+julia> foo2() do
+         prod([5, 10])
+       end
+15
+```
+
+Secondly, unlike in a macro, we don't actually need to look through source code for literal references to the `*` function. Because our dynamo is a normal function, we can actually use dispatch to decide what specific functions should do.
+
+```jldoctest main
+julia> foo3(::typeof(*), a, b) = a+b
+foo3 (generic function with 1 method)
+
+julia> foo3(*, 5, 10)
+15
+```
+
+Now we can define a simpler version of `foo3` which *only* recurses, and let dispatch figure out when to turn `*`s into `+`s.
+
+```jldoctest main
+julia> @dynamo function foo3(a...)
+         ir = IR(a...)
+         ir == nothing && return
+         recurse!(ir)
+         return ir
+       end
+
+julia> foo3() do
+         prod([5, 10])
+       end
+15
+```
+
+## Contexts
+
+We can achieve some interesting things by making our dynamo a *closure*, i.e. a callable object capable of holding some state. For example, consider an object which simply records a count.
+
+```jldoctest counter
+julia> mutable struct Counter
+         count::Int
+       end
+
+julia> Counter() = Counter(0)
+Counter
+
+julia> count!(c::Counter) = (c.count += 1)
+count! (generic function with 1 method)
+```
+
+We can turn this into a dynamo which inserts a single statement into the IR of each function, to increase the count by one.
+
+```jldoctest counter
+julia> using IRTools: @dynamo, IR, self, recurse!
+
+julia> @dynamo function (c::Counter)(m...)
+         ir = IR(m...)
+         ir == nothing && return
+         recurse!(ir)
+         pushfirst!(ir, Expr(:call, count!, self))
+         return ir
+       end
+```
+
+Now we can count how many function calls that happen in a given block of code.
+
+```jldoctest counter
+julia> c = Counter()
+Counter(0)
+
+julia> c() do
+         1 + 2.0
+       end
+3.0
+
+julia> c.count
+18
+```
+
 !!! warning
 
     A current usability issue with the dynamo is that it is _not_ automatically updated when you redefine functions. For example:
