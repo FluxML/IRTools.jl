@@ -633,9 +633,9 @@ function Base.push!(p::Pipe, x)
 end
 
 function Base.pushfirst!(p::Pipe, x)
-    tmp = var!(p)
-    substitute!(p, tmp, pushfirst!(p.to, prewalk(substitute(p), x)))
-    return tmp
+  tmp = var!(p)
+  substitute!(p, tmp, pushfirst!(p.to, prewalk(substitute(p), x)))
+  return tmp
 end
 
 function Base.delete!(p::Pipe, v)
