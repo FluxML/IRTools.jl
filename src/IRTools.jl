@@ -21,6 +21,8 @@ include("passes/passes.jl")
 include("interpret.jl")
 include("eval.jl")
 
+include("tools/relooper.jl")
+
 function __init__()
   define_typeinf_code2()
 end
