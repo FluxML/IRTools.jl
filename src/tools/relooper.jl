@@ -53,9 +53,9 @@ end
 function restructure(
                      blocks::Vector,
                      args,
+                     symbols = Dict(),
                      entries = 1,
                      loops = [],
-                     symbols = Dict{Variable,Symbol}(),
                      cond = nothing
                     )
 
@@ -68,6 +68,7 @@ function restructure(
         argnames = map(arguments(block)) do var
             get!(gensym, symbols, var)
         end
+
         if !isempty(loops)
             loopvars = Expr.(:(=), argnames, args[1])
             l == loops[end] && return [loopvars..., :(continue)]
@@ -94,14 +95,14 @@ function restructure(
         nargs = nextargs(succ, branches(block), symbols)
 
         if !accessible(block, loops)
-            return [code..., restructure(blocks, nargs, succ, loops, symbols, cond)...]
+            return [code..., restructure(blocks, nargs, symbols, succ, loops, cond)...]
         else
             return [
                     Expr.(:(=), argnames, args[1])...,
                     Expr(:while, true,
                          Expr(:block,
                               code...,
-                              restructure(blocks, nargs, succ, [loops...,l#= => args[1]=#], symbols, cond)...
+                              restructure(blocks, nargs, symbols, succ, [loops...,l#= => args[1]=#], cond)...
                              )
                         )
                    ]
@@ -109,12 +110,21 @@ function restructure(
     elseif length(entries) == 2 && cond != nothing
         #as = foldl(union, accessible.(Ref(blocks), entries))
         [Expr(:if, get!(gensym, symbols, cond),
-            Expr(:block, restructure(blocks, [args[2]], entries[2], loops, symbols)...),
-            Expr(:block, restructure(blocks, [args[1]], entries[1], loops, symbols)...))]
+            Expr(:block, restructure(blocks, [args[2]], symbols, entries[2], loops)...),
+            Expr(:block, restructure(blocks, [args[1]], symbols, entries[1], loops)...))]
     else
         @show entries
         error("Rebuild error")
     end
 end
 
-restructure(code::IR, args=[[]]) = Expr(:block, restructure(blocks(code), args)...)
+function restructure(code::IR, args=[])
+    symbols = Dict()
+    argnames = map(arguments(block(code, 1))) do var
+        get!(gensym, symbols, var)
+    end
+    return Expr(:block,
+                Expr.(:(=), argnames, ["foo", args...])...,
+                restructure(blocks(code), [args], symbols)...
+               )
+end
