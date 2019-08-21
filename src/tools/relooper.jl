@@ -35,6 +35,19 @@ function extract_expr(b::Block, symbols)
     end
 end
 
+function nextargs(succ, brs, symbols)
+    nextargs = []
+    for i in succ
+        br = findfirst(x->x.block==i, brs)
+        if br === nothing || brs[br].args === nothing
+            push!(nextargs, [])
+        else
+            push!(nextargs, get!.(gensym, Ref(symbols), brs[br].args))
+        end
+    end
+    return nextargs
+end
+
 
 # NOTE: this will break if arbitrary gotos are used.
 function restructure(
@@ -50,18 +63,20 @@ function restructure(
         return []
     elseif length(entries) == 1
         l = entries[1]
-
-        if !isempty(loops)
-            l == loops[end] && return [:(continue)]
-            l in loops && return [:(break)]
-            l == successors(blocks[loops[end]])[end] && return [:(break)]
-        end
-
         block = blocks[l]
+
         argnames = map(arguments(block)) do var
             get!(gensym, symbols, var)
         end
-        code = [Expr.(:(=), argnames, args[1])..., extract_expr(block, symbols)...]
+        if !isempty(loops)
+            loopvars = Expr.(:(=), argnames, args[1])
+            l == loops[end] && return [loopvars..., :(continue)]
+            l in loops && return [loopvars..., :(break)]
+            l == successors(blocks[loops[end]])[end] && return [loopvars..., :(break)]
+        end
+
+        #code = [Expr.(:(=), argnames, args[1])..., extract_expr(block, symbols)...]
+        code = extract_expr(block, symbols)
         cond = condition(block)
 
         if isreturn(block)
@@ -76,24 +91,17 @@ function restructure(
         succ = [i.id for i in successors(block)]
         isempty(succ) && return code
         brs = branches(block)
-        args = []
-        for i in succ
-            br = findfirst(x->x.block==i, brs)
-            if br === nothing || brs[br].args === nothing
-                push!(args, [])
-            else
-                push!(args, get!.(gensym, Ref(symbols), brs[br].args))
-            end
-        end
+        nargs = nextargs(succ, branches(block), symbols)
 
         if !accessible(block, loops)
-            return [code..., restructure(blocks, args, succ, loops, symbols, cond)...]
+            return [code..., restructure(blocks, nargs, succ, loops, symbols, cond)...]
         else
             return [
+                    Expr.(:(=), argnames, args[1])...,
                     Expr(:while, true,
                          Expr(:block,
                               code...,
-                              restructure(blocks, args, succ, [loops...,l], symbols, cond)...
+                              restructure(blocks, nargs, succ, [loops...,l#= => args[1]=#], symbols, cond)...
                              )
                         )
                    ]
