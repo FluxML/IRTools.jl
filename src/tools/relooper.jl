@@ -39,11 +39,16 @@ function nextargs(succ, brs, symbols)
     nextargs = []
     for i in succ
         br = findfirst(x->x.block==i, brs)
-        if br === nothing || brs[br].args === nothing
-            push!(nextargs, [])
-        else
-            push!(nextargs, get!.(gensym, Ref(symbols), brs[br].args))
-        end
+        push!(nextargs,
+              if br === nothing
+                  []
+              else
+                  [
+                   arg isa Variable ? get!(gensym, symbols, arg) : arg
+                   for arg in brs[br].args
+                  ]
+              end
+             )
     end
     return nextargs
 end
@@ -65,18 +70,14 @@ function restructure(
         l = entries[1]
         block = blocks[l]
 
-        argnames = map(arguments(block)) do var
-            get!(gensym, symbols, var)
-        end
+        assign_args = Expr.(:(=), get!.(gensym, Ref(symbols), arguments(block)), args[1])
 
         if !isempty(loops)
-            loopvars = Expr.(:(=), argnames, args[1])
-            l == loops[end] && return [loopvars..., :(continue)]
-            l in loops && return [loopvars..., :(break)]
-            l == successors(blocks[loops[end]])[end] && return [loopvars..., :(break)]
+            l == loops[end] && return [assign_args..., :(continue)]
+            l in loops && return [assign_args..., :(break)]
+            l == successors(blocks[loops[end]])[end] && return [assign_args..., :(break)]
         end
 
-        #code = [Expr.(:(=), argnames, args[1])..., extract_expr(block, symbols)...]
         code = extract_expr(block, symbols)
         cond = condition(block)
 
@@ -90,28 +91,33 @@ function restructure(
         end
 
         succ = [i.id for i in successors(block)]
-        isempty(succ) && return code
+        isempty(succ) && return [assign_args..., code...]
         brs = branches(block)
         nargs = nextargs(succ, branches(block), symbols)
 
         if !accessible(block, loops)
-            return [code..., restructure(blocks, nargs, symbols, succ, loops, cond)...]
+            return [
+                    assign_args...,
+                    code...,
+                    restructure(blocks, nargs, symbols, succ, loops, cond)...
+                   ]
         else
             return [
-                    Expr.(:(=), argnames, args[1])...,
+                    assign_args...,
                     Expr(:while, true,
                          Expr(:block,
                               code...,
-                              restructure(blocks, nargs, symbols, succ, [loops...,l#= => args[1]=#], cond)...
+                              restructure(blocks, nargs, symbols, succ, [loops...,l], cond)...
                              )
                         )
                    ]
         end
     elseif length(entries) == 2 && cond != nothing
-        #as = foldl(union, accessible.(Ref(blocks), entries))
-        [Expr(:if, get!(gensym, symbols, cond),
-            Expr(:block, restructure(blocks, [args[2]], symbols, entries[2], loops)...),
-            Expr(:block, restructure(blocks, [args[1]], symbols, entries[1], loops)...))]
+        return [
+                Expr(:if, get!(gensym, symbols, cond),
+                     Expr(:block, restructure(blocks, [args[2]], symbols, entries[2], loops)...),
+                     Expr(:block, restructure(blocks, [args[1]], symbols, entries[1], loops)...))
+               ]
     else
         @show entries
         error("Rebuild error")
@@ -119,12 +125,5 @@ function restructure(
 end
 
 function restructure(code::IR, args=[])
-    symbols = Dict()
-    argnames = map(arguments(block(code, 1))) do var
-        get!(gensym, symbols, var)
-    end
-    return Expr(:block,
-                Expr.(:(=), argnames, ["foo", args...])...,
-                restructure(blocks(code), [args], symbols)...
-               )
+    return Expr(:block, restructure(blocks(code), [["foo", args...]])...)
 end
