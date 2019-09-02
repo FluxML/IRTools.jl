@@ -140,7 +140,7 @@ function ssa!(ir::IR)
     b.id == 1 && return undef
     x = defs[b.id][v] = argument!(b, insert = false)
     for pred in predecessors(b)
-      if pred.id < b.id
+      if pred.id <= b.id
         for br in branches(pred, b)
           push!(br.args, reaching(pred, v))
         end
@@ -164,9 +164,9 @@ function ssa!(ir::IR)
     for i = 1:length(basicblock(b).branches)
       basicblock(b).branches[i] = rename(basicblock(b).branches[i])
     end
-  end
-  for b in blocks(ir), (succ, ss) in todo[b.id], br in branches(b, succ)
-    append!(br.args, [reaching(b, v) for v in ss])
+    for (succ, ss) in todo[b.id], br in branches(b, succ)
+      append!(br.args, [reaching(b, v) for v in ss])
+    end
   end
   return ir
 end
