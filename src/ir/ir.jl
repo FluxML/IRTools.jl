@@ -140,6 +140,31 @@ canbranch(bb::Block) = length(branches(bb)) == 0 || isconditional(branches(bb)[e
 
 isreturn(b::Block) = any(isreturn, branches(b))
 
+"""
+    explicitbranch!(block)
+
+Convert implicit fallthroughs to explicit branches to the next block (these occur when the last
+branch in a block is conditional):
+
+    1: (%1, %2)
+      %3 = %2 < 0
+      br 3 unless %3
+    2:
+      return 0
+    3:
+      return %2
+
+will become
+
+    1: (%1, %2)
+      %3 = %2 < 0
+      br 3 unless %3
+      br 2
+    2:
+      return 0
+    3:
+      return %2
+"""
 function explicitbranch!(b::Block)
   b.id == 1 && return
   a = block(b.ir, b.id-1)

@@ -23,6 +23,7 @@ push!
 pushfirst!
 insert!
 IRTools.insertafter!
+IRTools.explicitbranch!
 empty
 keys
 haskey
