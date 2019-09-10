@@ -221,7 +221,7 @@ representing the argument.
 The `at` keyword argument can be used to specify where the new argument should
 go; by default it is appended to the end of the argument list.
 
-If there are branches to this block, they will be updated to pass `value`
+Unless `insert = false`, if there are branches to this block, they will be updated to pass `value`
 (`nothing` by default) as an argument.
 """
 function argument!(b::Block, value = nothing, type = Any; insert = true, at = length(arguments(b))+1)
