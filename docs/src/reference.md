@@ -31,7 +31,13 @@ IRTools.basicblock
 IRTools.explicitbranch!
 IRTools.returnvalue
 IRTools.argument!
+IRTools.emptyargs!
+IRTools.deletearg!
 IRTools.block!
+IRTools.block
+IRTools.blocks
+IRTools.successors
+IRTools.predecessors
 push!
 pushfirst!
 insert!

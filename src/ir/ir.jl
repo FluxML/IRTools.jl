@@ -184,7 +184,13 @@ Base.copy(ir::IR) = IR(copy(ir.defs), copy.(ir.blocks), copy(ir.lines), ir.meta)
 length(ir::IR) = sum(x -> x[2] > 0, ir.defs)
 
 
+"""
+    block!(ir, [i])
 
+Create a new block into IR and return it.  If `i` is given, the block will be inserted at that
+position; otherwise, it will be appended at the end.  Block labels in branches are automatically 
+updated.
+"""
 function block!(ir::IR, i = length(blocks(ir))+1)
   insert!(ir.blocks, i, BasicBlock())
   if i != length(blocks(ir))
@@ -371,6 +377,13 @@ end
 argument!(ir::IR, a...; kw...) =
   argument!(block(ir, 1), nothing, a...; kw..., insert = false)
 
+
+"""
+    emptyargs!(b::Block)
+
+Delete all arguments from block `b`, and automatically remove them from all
+branches to this block.
+"""
 function emptyargs!(b::Block)
   empty!(arguments(b))
   for c in blocks(b.ir), br in branches(c)
@@ -379,6 +392,12 @@ function emptyargs!(b::Block)
   return
 end
 
+"""
+    deletearg!(b::Block, i)
+
+Delete the `i`-th argument from block `b`, and automatically remove it from all
+branches to this block.
+"""
 function deletearg!(b::Block, i)
   arg = arguments(b)[i]
   deleteat!(arguments(b), i)
@@ -395,9 +414,26 @@ function deletearg!(b::Block, i::AbstractVector)
   end
 end
 
+"""
+    deletearg!(ir::IR, i)
+
+Delete the `i`-th argument from the first block of `ir`, and automatically remove it from all
+branches to this block.
+"""
 deletearg!(ir::IR, i) = deletearg!(block(ir, 1), i)
 
+"""
+    block(ir, i)
+
+Return the `i`-th `Block` of `ir`.
+"""
 block(ir::IR, i) = Block(ir, i)
+
+"""
+    blocks(ir)
+
+Return the list of blocks `Block` of `ir`.
+"""
 blocks(ir::IR) = [block(ir, i) for i = 1:length(ir.blocks)]
 
 function blockidx(ir::IR, x::Variable)
@@ -440,6 +476,12 @@ branch(block::Integer, args...; unless = nothing) =
 
 branch(block::Block, args...; kw...) = branch(block.id, args...; kw...)
 
+"""
+    branch!(b::Block, block, args...; unless = nothing)
+
+Add to block `b` a new branch to `block`, with arguments `args` and condition `unless`, 
+and return it.
+"""
 function branch!(b::Block, block, args...; unless = nothing)
   brs = branches(b)
   unless === nothing && deleteat!(brs, findall(br -> br.condition === nothing, brs))
@@ -448,11 +490,24 @@ function branch!(b::Block, block, args...; unless = nothing)
   return b
 end
 
+"""
+    branch!(ir::IR, block, args...; unless = nothing)
+
+Add to the last block of `ir` a new branch to `block`, with arguments `args` and condition `unless`,
+and return it.
+"""
 function branch!(ir::IR, args...; kw...)
   branch!(blocks(ir)[end], args...; kw...)
   return ir
 end
 
+
+"""
+    return!(block, x)
+    return!(ir, x)
+
+Add to `block` or the last block of `ir` a return branch with argument `x`, and return it.
+"""
 return!(ir, x) = branch!(ir, 0, x)
 
 function getindex(ir::IR, i::Variable)
@@ -475,6 +530,14 @@ end
 
 length(b::Block) = count(x -> x[1] == b.id, b.ir.defs)
 
+"""
+    successors(b::Block)
+
+Returns all `Block`s from which you can reach `b` in one jump; basically, all x such that 
+`branches(x, b)` is non-empty.  Implicit jumps by fall-through are noticed as well.
+
+See: [`predecessors`](@predecessors)
+"""
 function successors(b::Block)
   brs = basicblock(b).branches
   succs = Int[br.block for br in brs if br.block > 0]
@@ -482,6 +545,14 @@ function successors(b::Block)
   return [block(b.ir, succ) for succ in succs]
 end
 
+"""
+    predecessors(b::Block)
+
+Returns all `Block`s of which `b` is a successor; basically, all x such that 
+`branches(x, b)` is non-empty.  Implicit jumps by fall-through are noticed as well.
+
+See: [`successors`](@successors)
+"""
 predecessors(b::Block) = [c for c in blocks(b.ir) if b in successors(c)]
 
 """
@@ -673,6 +744,11 @@ any metadata are preserved from the original IR.
 """
 Base.empty(ir::IR) = IR(copy(ir.lines), meta = ir.meta)
 
+"""
+    permute!(ir::IR, perm::AbstractVector)
+
+Permutes block order in-place, keeping track of internal references (like branch targets).
+"""
 function Base.permute!(ir::IR, perm::AbstractVector)
   explicitbranch!(ir)
   permute!(ir.blocks, perm)
