@@ -81,30 +81,30 @@ function reloop(cfg::CFG; blocks = 1:length(cfg.graph), entry = [1], done = Int[
   end
 end
 
-const indent = "    "
+const indent = "  "
 
 printstructure(io::IO, ::Nothing, level) = nothing
+
+function printstructure(io::IO, s::Simple, level)
+  println(io, indent^level, s.block)
+  printstructure(io, s.next, level)
+end
 
 _printstructure(io::IO, s, level) = printstructure(io, s, level)
 
 function _printstructure(io::IO, s::Simple, level)
-  println(io, indent^level, s.block)
-  _printstructure(io, s.next, level)
-end
-
-function printstructure(io::IO, s::Simple, level)
-  if s.next == nothing
-    _printstructure(io, s, level)
-  else
-    println(io, indent^level, "Simple:")
-    _printstructure(io, s, level+1)
-  end
+  println(io, indent^level, "Simple:")
+  printstructure(io, s, level+1)
 end
 
 function printstructure(io::IO, s::Multiple, level)
   println(io, indent^level, "Multiple:")
-  for b in s.inner
-    printstructure(io, b, level+1)
+  if length(s.inner) == 1
+    printstructure(io, s.inner[1], level+1)
+  else
+    for b in s.inner
+      _printstructure(io, b, level+1)
+    end
   end
   printstructure(io, s.next, level)
 end
@@ -117,5 +117,5 @@ end
 
 function Base.show(io::IO, b::Union{Simple,Multiple,Loop})
   println(io, "Structured CFG:")
-  _printstructure(io, b, 0)
+  printstructure(io, b, 0)
 end
