@@ -119,3 +119,79 @@ function Base.show(io::IO, b::Union{Simple,Multiple,Loop})
   println(io, "Structured CFG:")
   printstructure(io, b, 0)
 end
+
+# AST Conversion
+
+entry(s::Simple) = [s.block]
+entry(s::Loop) = entry(s.inner)
+entry(s::Multiple) = union(entry.(s.inner)...)
+
+lower(ir, v::Variable; args) =
+  haskey(args, v) ? args[v] : postwalk(v -> lower(ir, v; args=args), ir[v].expr)
+
+lower(ir, s::Slot; args) = Symbol(:slot, s.id)
+lower(ir, v; args) = v
+
+function ast(b::Block, args)
+  usages = Dict()
+  prewalk(b) do x
+    x isa Variable && (usages[x] = get(usages, x, 0)+1)
+    x
+  end
+  exs = []
+  for v in keys(b)
+    get(usages, v, 0) == 0 && push!(exs, lower(b, v; args = args))
+  end
+  return exs
+end
+
+ast(ir::IR, ::Nothing; args, branches = Dict()) = nothing
+
+function ast(ir::IR, cfg::Simple; args, branches = Dict())
+  b = block(ir, cfg.block)
+  exs = ast(b, args)
+  x = :nothing
+  for br in reverse(IRTools.branches(b))
+    y = isreturn(br) ?
+      Expr(:return, lower(ir, returnvalue(br), args = args)) :
+      :(__label__ = $(br.block))
+    haskey(branches, br.block) && (y = @q ($y; $(Expr(branches[br.block]))))
+    isconditional(br) ? (x = :($(lower(ir, br.condition, args=args)) ? $x : $y)) :
+      x = y
+  end
+  push!(exs, x)
+  @q begin
+    $(exs...)
+    $(ast(ir, cfg.next, args = args, branches = branches))
+  end
+end
+
+function ast(ir::IR, cfg::Multiple; args, branches = Dict())
+  conds = [:(__label__ == $(s.block)) for s in cfg.inner]
+  body = [ast(ir, s, args = args, branches = branches) for s in cfg.inner]
+  ex = Expr(:elseif, conds[end], body[end])
+  ex = foldr((i, x) -> Expr(:elseif, conds[i], body[i], x), 1:length(conds)-1, init = ex)
+  ex.head = :if
+  return @q ($ex; $(ast(ir, cfg.next; args = args, branches = branches)))
+end
+
+function ast(ir::IR, cfg::Loop; args, branches = Dict())
+  for e in entry(cfg)
+    branches[e] = :continue
+  end
+  for e in entry(cfg.next)
+    branches[e] = :break
+  end
+  @q begin
+    while true
+      $(ast(ir, cfg.inner, args = args, branches = branches))
+    end
+    $(ast(ir, cfg.next, args = args, branches = branches))
+  end
+end
+
+function reloop(ir::IR)
+  cfg = reloop(CFG(ir))
+  args = Dict(v => Symbol(:arg, i) for (i, v) in enumerate(arguments(ir)))
+  ast(ir, cfg, args = args)
+end

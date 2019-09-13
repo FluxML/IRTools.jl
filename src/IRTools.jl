@@ -1,7 +1,7 @@
 module IRTools
 
 using MacroTools
-using MacroTools: prewalk, postwalk
+using MacroTools: @q, prewalk, postwalk
 
 export @code_ir
 
