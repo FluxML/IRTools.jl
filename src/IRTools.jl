@@ -17,6 +17,7 @@ include("reflection/utils.jl")
 include("reflection/dynamo.jl")
 
 include("passes/passes.jl")
+include("passes/relooper.jl")
 
 include("interpret.jl")
 include("eval.jl")

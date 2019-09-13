@@ -14,6 +14,10 @@ end
   include("compiler.jl")
 end
 
+@testset "Relooper" begin
+  include("relooper.jl")
+end
+
 doctest(IRTools)
 
 end
