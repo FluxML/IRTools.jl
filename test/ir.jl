@@ -12,4 +12,13 @@ end
 
 @test @code_ir(f(1)) isa IR
 
-@test_broken gcd(10, 5) isa IR
+function f(a, b)
+    u = 1
+    while true
+        if true
+        end
+    end
+    f(u)
+end
+
+@test @code_ir(f(1, 2)) isa IR

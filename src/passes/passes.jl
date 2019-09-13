@@ -133,6 +133,7 @@ function prune!(ir::IR)
 end
 
 function ssa!(ir::IR)
+  current = 1
   defs = Dict(b => Dict{Slot,Any}() for b in 1:length(ir.blocks))
   todo = Dict(b => Dict{Int,Vector{Slot}}() for b in 1:length(ir.blocks))
   function reaching(b, v)
@@ -140,7 +141,7 @@ function ssa!(ir::IR)
     b.id == 1 && return undef
     x = defs[b.id][v] = argument!(b, insert = false)
     for pred in predecessors(b)
-      if pred.id <= b.id
+      if pred.id < current
         for br in branches(pred, b)
           push!(br.args, reaching(pred, v))
         end
@@ -151,6 +152,7 @@ function ssa!(ir::IR)
     return x
   end
   for b in blocks(ir)
+    current = b.id
     rename(ex) = prewalk(x -> x isa Slot ? reaching(b, x) : x, ex)
     for (v, st) in b
       ex = st.expr
