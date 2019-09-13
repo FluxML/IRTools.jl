@@ -11,3 +11,5 @@ function f(x)
 end
 
 @test @code_ir(f(1)) isa IR
+
+@test_broken gcd(10, 5) isa IR
