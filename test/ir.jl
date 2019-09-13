@@ -11,3 +11,14 @@ function f(x)
 end
 
 @test @code_ir(f(1)) isa IR
+
+function f(a, b)
+    u = 1
+    while true
+        if true
+        end
+    end
+    f(u)
+end
+
+@test @code_ir(f(1, 2)) isa IR
