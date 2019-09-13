@@ -119,9 +119,9 @@ function block!(ir::IR, i = length(blocks(ir))+1)
       br = branches(b)[i]
       br.block >= i && (branches(b)[i] = Branch(br, block = br.block+1))
     end
-  end
-  for (ii, (b, j)) = enumerate(ir.defs)
-    b >= i && (ir.defs[ii] = (b+1, j))
+    for (ii, (b, j)) = enumerate(ir.defs)
+      b >= i && (ir.defs[ii] = (b+1, j))
+    end
   end
   return block(ir, i)
 end
