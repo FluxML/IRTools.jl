@@ -11,6 +11,7 @@ walk(x::PiNode, inner, outer) = outer(PiNode(inner(x.val), x.typ))
 
 xcall(mod::Module, f::Symbol, args...) = Expr(:call, GlobalRef(mod, f), args...)
 xcall(f::Symbol, args...) = xcall(Base, f, args...)
+xcall(f, args...) = Expr(:call, f, args...)
 
 map(f, br::Branch) = Branch(br, condition = f(br.condition), args = f.(br.args))
 
