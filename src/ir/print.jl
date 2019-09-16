@@ -95,3 +95,11 @@ end
 printers[:pop_exception] = function (io, ex)
   print(io, "pop exception $(ex.args[1])")
 end
+
+printers[:lambda] = function (io, ex)
+  io = IOContext(io, :indent=>get(io, :indent, 0)+2)
+  print(io, "λ: ")
+  printargs(io, ex.args[2:end])
+  println(io)
+  print(io, ex.args[1])
+end
