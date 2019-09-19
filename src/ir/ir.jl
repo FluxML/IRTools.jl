@@ -548,6 +548,18 @@ function Base.permute!(ir::IR, perm::AbstractVector)
   return ir
 end
 
+function IR(b::Block)
+  ir = IR(copy(b.ir.defs), [basicblock(b)], b.ir.lines, b.ir.meta)
+  for i in 1:length(ir.defs)
+    if ir.defs[i][1] == b.id
+      ir.defs[i] = (1, ir.defs[i][2])
+    else
+      ir.defs[i] = (-1, -1)
+    end
+  end
+  return ir
+end
+
 # Pipe
 
 struct NewVariable
