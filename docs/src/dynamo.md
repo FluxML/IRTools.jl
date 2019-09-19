@@ -214,7 +214,7 @@ julia> foo3(*, 5, 10)
 15
 ```
 
-Now we can define a simpler version of `foo3` which *only* recurses, and let dispatch figure out when to turn `*`s into `+`s.
+Now we can define a simpler version of `foo3` which *only* recurses, and lets dispatch figure out when to turn `*`s into `+`s.
 
 ```jldoctest main
 julia> @dynamo function foo3(a...)
