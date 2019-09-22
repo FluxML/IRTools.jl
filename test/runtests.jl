@@ -6,6 +6,10 @@ using IRTools, Documenter, Test
   include("ir.jl")
 end
 
+@testset "Analysis" begin
+  include("analysis.jl")
+end
+
 @testset "Reflection" begin
   include("reflection.jl")
 end

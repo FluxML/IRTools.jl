@@ -42,7 +42,7 @@ function usages(b::Block)
   return uses
 end
 
-function dominators(cfg)
+function dominators(cfg; entry = 1)
   preds = cfg'
   blocks = [1:length(cfg.graph);]
   doms = Dict(b => Set(blocks) for b in blocks)
@@ -51,7 +51,7 @@ function dominators(cfg)
     # We currently special case the first block here,
     # since Julia sometimes creates blocks with no predecessors,
     # which otherwise throw off the analysis.
-    ds = isempty(preds[b]) ? Set([b, 1]) :
+    ds = isempty(preds[b]) ? Set([b, entry]) :
       push!(intersect([doms[c] for c in preds[b]]...), b)
     if ds != doms[b]
       doms[b] = ds
@@ -63,16 +63,16 @@ function dominators(cfg)
   return doms
 end
 
-function domtree(cfg, start = 1)
-  doms = dominators(cfg)
+function domtree(cfg; entry = 1)
+  doms = dominators(cfg, entry = entry)
   doms = Dict(b => filter(c -> b != c && b in doms[c], 1:length(cfg)) for b in 1:length(cfg))
   children(b) = filter(c -> !(c in union(map(c -> doms[c], doms[b])...)), doms[b])
   tree(b) = Pair{Int,Any}(b,tree.(children(b)))
-  tree(start)
+  tree(entry)
 end
 
 function domorder(ir, start = 1; full = false)
-  tree = domtree(CFG(ir), start)
+  tree = domtree(CFG(ir), entry = start)
   flatten((b,cs)) = vcat(b, flatten.(cs)...)
   tree = flatten(tree)
   if full
