@@ -71,6 +71,13 @@ function domtree(cfg; entry = 1)
   tree(entry)
 end
 
+function idoms(cfg; entry = 1)
+  ds = zeros(Int, length(cfg))
+  _idoms((a, bs)) = foreach(((b, cs),) -> (ds[b] = a; _idoms(b=>cs)), bs)
+  _idoms(domtree(cfg, entry = entry))
+  return ds
+end
+
 function domorder(ir, start = 1; full = false)
   tree = domtree(CFG(ir), entry = start)
   flatten((b,cs)) = vcat(b, flatten.(cs)...)
