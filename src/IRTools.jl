@@ -1,7 +1,7 @@
 module IRTools
 
 using MacroTools
-using MacroTools: prewalk, postwalk
+using MacroTools: @q, prewalk, postwalk
 
 export @code_ir
 
@@ -17,6 +17,7 @@ include("reflection/utils.jl")
 include("reflection/dynamo.jl")
 
 include("passes/passes.jl")
+include("passes/relooper.jl")
 
 include("interpret.jl")
 include("eval.jl")

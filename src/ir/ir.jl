@@ -31,6 +31,7 @@ Branch(br::Branch; condition = br.condition,
   Branch(condition, block, args)
 
 isreturn(b::Branch) = b.block == 0 && length(b.args) == 1
+returnvalue(b::Branch) = b.args[1]
 isconditional(b::Branch) = b.condition != nothing
 
 Base.:(==)(a::Branch, b::Branch) =
@@ -150,10 +151,10 @@ function explicitbranch!(b::Block)
   if all(isconditional, branches(a))
     branch!(a, b.id)
   end
-  return
+  return b
 end
 
-explicitbranch!(ir::IR) = foreach(explicitbranch!, blocks(ir))
+explicitbranch!(ir::IR) = (foreach(explicitbranch!, blocks(ir)); return ir)
 
 function branches(b::Block, c::Block)
   c.id == b.id+1 && explicitbranch!(c)
@@ -180,7 +181,7 @@ Retreive the return value of a block.
 """
 function returnvalue(b::Block)
   isreturn(branches(b)[end]) || error("Block does not return")
-  return branches(b)[end].args[1]
+  return returnvalue(branches(b)[end])
 end
 
 """
