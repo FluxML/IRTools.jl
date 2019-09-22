@@ -1,20 +1,3 @@
-struct CFG
-  graph::Vector{Vector{Int}}
-end
-
-function CFG(ir::IR)
-  graph = Vector{Int}[]
-  for b in blocks(ir)
-    push!(graph, Int[])
-    for c in successors(b)
-      push!(graph[end], c.id)
-    end
-  end
-  return CFG(graph)
-end
-
-Base.:(==)(a::CFG, b::CFG) = a.graph == b.graph
-
 function reaching(c::CFG, i::Integer, rs = Int[]; ignore = Int[])
   for j in c.graph[i]
     j in rs && return rs
