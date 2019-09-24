@@ -33,7 +33,6 @@ function printargs(io::IO, args, types = [Any for arg in args])
   print(io, ")")
 end
 
-# TODO avoid trailing newline
 function show(io::IO, b::Block)
   indent = get(io, :indent, 0)
   bb = basicblock(b)
@@ -43,18 +42,24 @@ function show(io::IO, b::Block)
     print(io, " ")
     printargs(io, bb.args, bb.argtypes)
   end
-  println(io)
   for (x, st) in b
+    println(io)
     print(io, tab^indent, "  ")
     x == nothing || print(io, string("%", x.id), " = ")
     st.expr == nothing ? print(io, "nothing") :
       print_stmt(io, st.expr)
     st.type == Any || print(io, " :: ", st.type)
-    println(io)
   end
   for br in bb.branches
-    println(io, tab^indent, "  ", br)
+    println(io)
+    print(io, tab^indent, "  ", br)
   end
 end
 
-show(io::IO, ir::IR) = foreach(b -> show(io, b), blocks(ir))
+function show(io::IO, ir::IR)
+  show(io, block(ir, 1))
+  for b in blocks(ir)[2:end]
+    println(io)
+    show(io, b)
+  end
+end
