@@ -63,3 +63,9 @@ function show(io::IO, ir::IR)
     show(io, b)
   end
 end
+
+function print_stmt(io::IO, ex::IR)
+  io = IOContext(io, :indent=>get(io, :indent, 0)+2)
+  println(io)
+  show(io, ex)
+end
