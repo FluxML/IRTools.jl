@@ -64,7 +64,7 @@ julia> @code_ir f(1)
   return 0
 ```
 
-The block labels `1:`, `2:` etc and the branch `br 3 unless %3` can be thought of as a version of `@label` and `@goto`. In this case the branch is conditional on the test `%3 = x > 0`; if that's true we'll skip the branch, move on to the label `2` and return `x`.
+The block labels `1:`, `2:` etc and the branch `br 2 unless %3` can be thought of as a version of `@label` and `@goto`. In this case the branch is conditional on the test `%3 = x > 0`; if that's true we'll skip the branch labeled `2` and return `x`.
 
 IR is composed of a series of *basic blocks* that jump between each other like this. A basic block always starts with a label and ends with (optional) branches. No branches can appear in the middle of a basic block; that would just divide the block in two. Any structured control flow, however complex, can be turned into a series of blocks like this.
 
