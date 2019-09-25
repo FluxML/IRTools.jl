@@ -336,7 +336,7 @@ length(b::Block) = count(x -> x[1] == b.id, b.ir.defs)
 function successors(b::Block)
   brs = basicblock(b).branches
   succs = Int[br.block for br in brs if br.block > 0]
-  all(br -> br.condition != nothing, brs) && push!(succs, b.id+1)
+  all(br -> br.condition != nothing, brs) && b.id < length(blocks(b.ir)) && push!(succs, b.id+1)
   return [block(b.ir, succ) for succ in succs]
 end
 
