@@ -184,6 +184,8 @@ function returnvalue(b::Block)
   return returnvalue(branches(b)[end])
 end
 
+returntype(b::Block) = exprtype(b.ir, returnvalue(b))
+
 """
     argument!(block, [value, type])
 
