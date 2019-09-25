@@ -221,11 +221,14 @@ function log!(ir, msg)
   return ir
 end
 
+totype(T::Type) = T
+totype(T::Core.Compiler.PartialStruct) = T.typ
+
 function pis!(ir::IR)
   for (v, st) in ir
     ex = st.expr
     ex isa PiNode || continue
-    ir[v] = xcall(Core, :typeassert, ex.val, ex.typ)
+    ir[v] = xcall(Core, :typeassert, ex.val, totype(ex.typ))
   end
   return ir
 end
