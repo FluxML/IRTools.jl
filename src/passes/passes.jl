@@ -211,6 +211,20 @@ function ssa!(ir::IR)
   return ir
 end
 
+function reachable_blocks(cfg::CFG)
+  bs = Int[]
+  reaches(b) = b in bs || (push!(bs, b); reaches.(cfg[b]))
+  reaches(1)
+  return bs
+end
+
+function trimblocks!(ir::IR)
+  for b in sort(setdiff(1:length(blocks(ir)), reachable_blocks(CFG(ir))), rev = true)
+    deleteblock!(ir, b)
+  end
+  return ir
+end
+
 function inlineable!(ir)
   pushfirst!(ir, Expr(:meta, :inline))
   return ir

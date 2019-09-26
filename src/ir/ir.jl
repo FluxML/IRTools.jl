@@ -128,6 +128,21 @@ function block!(ir::IR, i = length(blocks(ir))+1)
   return block(ir, i)
 end
 
+function deleteblock!(ir::IR, i::Integer)
+  deleteat!(ir.blocks, i)
+  if i != length(blocks(ir))
+    for b in blocks(ir), i = 1:length(branches(b))
+      br = branches(b)[i]
+      br.block >= i && (branches(b)[i] = Branch(br, block = br.block-1))
+    end
+    for (ii, (b, j)) = enumerate(ir.defs)
+      b == i && (ir.defs[ii] = (-1, -1))
+      b > i && (ir.defs[ii] = (b-1, j))
+    end
+  end
+  return
+end
+
 struct Block
   ir::IR
   id::Int
