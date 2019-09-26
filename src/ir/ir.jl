@@ -549,7 +549,7 @@ function Base.permute!(ir::IR, perm::AbstractVector)
 end
 
 function IR(b::Block)
-  ir = IR(copy(b.ir.defs), [basicblock(b)], b.ir.lines, b.ir.meta)
+  ir = IR(copy(b.ir.defs), [copy(basicblock(b))], b.ir.lines, b.ir.meta)
   for i in 1:length(ir.defs)
     if ir.defs[i][1] == b.id
       ir.defs[i] = (1, ir.defs[i][2])
