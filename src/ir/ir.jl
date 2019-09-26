@@ -119,9 +119,9 @@ length(ir::IR) = sum(x -> x[2] > 0, ir.defs)
 function block!(ir::IR, i = length(blocks(ir))+1)
   insert!(ir.blocks, i, BasicBlock())
   if i != length(blocks(ir))
-    for b in blocks(ir), i = 1:length(branches(b))
-      br = branches(b)[i]
-      br.block >= i && (branches(b)[i] = Branch(br, block = br.block+1))
+    for b in blocks(ir), bi = 1:length(branches(b))
+      br = branches(b)[bi]
+      br.block >= i && (branches(b)[bi] = Branch(br, block = br.block+1))
     end
     for (ii, (b, j)) = enumerate(ir.defs)
       b >= i && (ir.defs[ii] = (b+1, j))
@@ -132,15 +132,15 @@ end
 
 function deleteblock!(ir::IR, i::Integer)
   deleteat!(ir.blocks, i)
-  if i != length(blocks(ir))
-    for b in blocks(ir), i = 1:length(branches(b))
-      br = branches(b)[i]
-      br.block >= i && (branches(b)[i] = Branch(br, block = br.block-1))
+  if i != length(blocks(ir))+1
+    for b in blocks(ir), bi = 1:length(branches(b))
+      br = branches(b)[bi]
+      br.block >= i && (branches(b)[bi] = Branch(br, block = br.block-1))
     end
-    for (ii, (b, j)) = enumerate(ir.defs)
-      b == i && (ir.defs[ii] = (-1, -1))
-      b > i && (ir.defs[ii] = (b-1, j))
-    end
+  end
+  for (ii, (b, j)) = enumerate(ir.defs)
+    b == i && (ir.defs[ii] = (-1, -1))
+    b > i && (ir.defs[ii] = (b-1, j))
   end
   return
 end
