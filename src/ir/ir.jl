@@ -37,6 +37,8 @@ isconditional(b::Branch) = b.condition != nothing
 Base.:(==)(a::Branch, b::Branch) =
   (a.condition, a.block, a.args) == (b.condition, b.block, b.args)
 
+Base.copy(br::Branch) = Branch(br.condition, br.block, copy(br.args))
+
 arguments(b::Branch) = b.args
 
 const unreachable = Branch(nothing, 0, [])
@@ -75,7 +77,7 @@ end
 
 BasicBlock(stmts = []) = BasicBlock(stmts, [], [], Branch[])
 
-Base.copy(bb::BasicBlock) = BasicBlock(copy(bb.stmts), copy(bb.args), copy(bb.argtypes), copy(bb.branches))
+Base.copy(bb::BasicBlock) = BasicBlock(copy(bb.stmts), copy(bb.args), copy(bb.argtypes), copy.(bb.branches))
 
 branches(bb::BasicBlock) = bb.branches
 arguments(bb::BasicBlock) = bb.args
