@@ -257,6 +257,7 @@ end
 function deletearg!(b::Block, i)
   arg = arguments(b)[i]
   deleteat!(arguments(b), i)
+  deleteat!(argtypes(b), i)
   for c in blocks(b.ir), br in branches(c)
     br.block == b.id && deleteat!(arguments(br), i)
   end
