@@ -254,7 +254,7 @@ function emptyargs!(b::Block)
   return
 end
 
-function deletearg!(b::Block, i)
+function deletearg!(b::Block, i::Integer)
   arg = arguments(b)[i]
   deleteat!(arguments(b), i)
   deleteat!(argtypes(b), i)
