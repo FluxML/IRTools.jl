@@ -113,7 +113,7 @@ julia&gt; return!(ir, y)
   %2 = %1 * %1
   return %2
 
-julia&gt; IRTools.eval(ir, 5)
+julia&gt; IRTools.evalir(ir, 5)
 25</code></pre><p>More generally, you can turn an IR fragment into an anonymous function, useful not just for evaluation but also to see the compiler&#39;s <code>@code_typed</code>, <code>@code_llvm</code> output etc.</p><pre><code class="language-julia">julia&gt; f = func(ir)
 ##422 (generic function with 1 method)
 
