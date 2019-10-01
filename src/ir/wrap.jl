@@ -52,7 +52,7 @@ function rewrite_phis!(ir::IR, offset)
   for (v, st) in ir
     ex = st.expr
     ex isa PhiNode || continue
-    to, = IRTools.blockidx(ir, v)
+    to, = IRTools.Inner.blockidx(ir, v)
     bb = BasicBlock(to)
     push!(bb.args, v)
     push!(bb.argtypes, st.type)
