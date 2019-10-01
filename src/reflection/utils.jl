@@ -56,7 +56,7 @@ function varargs!(meta, ir::IR, n = 0)
     Any[argTs[1:n]..., typed ? Tuple{Ts[1:end-1]...,Ts[end].parameters...} : Any]
   args = copy(ir.blocks[1].args)
   deletearg!(ir, length(allTs)+1:length(args))
-  argTs .= allTs
+  empty!(argTs); append!(argTs, allTs)
   argmap = Dict{Variable,Any}()
   argis = 1:(length(Ts))
   newargs = map(reverse(argis)) do i
