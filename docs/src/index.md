@@ -217,7 +217,7 @@ julia> return!(ir, y)
   %2 = %1 * %1
   return %2
 
-julia> IRTools.eval(ir, 5)
+julia> IRTools.evalir(ir, 5)
 25
 ```
 

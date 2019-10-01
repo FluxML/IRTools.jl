@@ -201,8 +201,8 @@ function ssa!(ir::IR)
         ir[v] = rename(ex)
       end
     end
-    for i = 1:length(basicblock(b).branches)
-      basicblock(b).branches[i] = rename(basicblock(b).branches[i])
+    for i = 1:length(BasicBlock(b).branches)
+      BasicBlock(b).branches[i] = rename(BasicBlock(b).branches[i])
     end
     for (succ, ss) in todo[b.id], br in branches(b, succ)
       append!(br.args, [reaching(b, v) for v in ss])

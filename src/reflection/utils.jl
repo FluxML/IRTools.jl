@@ -12,14 +12,14 @@ function slots!(ir::IR)
   for b in blocks(ir)
     # Block arguments
     if b.id != 1
-      for (i, var) in enumerate(basicblock(b).args)
+      for (i, var) in enumerate(BasicBlock(b).args)
         slots[var] = spatslot(b.id, i)
       end
-      empty!(basicblock(b).args)
-      empty!(basicblock(b).argtypes)
+      empty!(BasicBlock(b).args)
+      empty!(BasicBlock(b).argtypes)
     end
     # Branches
-    for br in basicblock(b).branches
+    for br in BasicBlock(b).branches
       isreturn(br) && continue
       for (i, val) in enumerate(br.args)
         push!(b, :($(spatslot(br.block, i)) = $val))

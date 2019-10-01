@@ -35,7 +35,7 @@ end
 
 function show(io::IO, b::Block)
   indent = get(io, :indent, 0)
-  bb = basicblock(b)
+  bb = BasicBlock(b)
   print(io, tab^indent)
   print(io, b.id, ":")
   if !isempty(bb.args)

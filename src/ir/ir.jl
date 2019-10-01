@@ -150,12 +150,12 @@ struct Block
   id::Int
 end
 
-basicblock(b::Block) = b.ir.blocks[b.id]
-branches(b::Block) = branches(basicblock(b))
-arguments(b::Block) = arguments(basicblock(b))
+BasicBlock(b::Block) = b.ir.blocks[b.id]
+branches(b::Block) = branches(BasicBlock(b))
+arguments(b::Block) = arguments(BasicBlock(b))
 arguments(ir::IR) = arguments(block(ir, 1))
 
-argtypes(b::Block) = argtypes(basicblock(b))
+argtypes(b::Block) = argtypes(BasicBlock(b))
 argtypes(ir::IR) = argtypes(block(ir, 1))
 
 canbranch(bb::Block) = length(branches(bb)) == 0 || isconditional(branches(bb)[end])
@@ -233,7 +233,7 @@ function argument!(b::Block, value = nothing, type = Any; insert = true, at = le
   push!(b.ir.defs, (b.id, -at))
   arg = var(length(b.ir.defs))
   insert!(arguments(b), at, arg)
-  insert!(basicblock(b).argtypes, at, type)
+  insert!(BasicBlock(b).argtypes, at, type)
   if insert
     explicitbranch!(b)
     for c in blocks(b.ir), br in branches(c)
@@ -306,9 +306,9 @@ function Base.haskey(ir::IR, x::Variable)
   return i > 0
 end
 
-getindex(b::Block, i::Integer) = basicblock(b).stmts[i]
+getindex(b::Block, i::Integer) = BasicBlock(b).stmts[i]
 getindex(b::Block, i::Variable) = b.ir[i]
-setindex!(b::Block, x::Statement, i::Integer) = (basicblock(b).stmts[i] = x)
+setindex!(b::Block, x::Statement, i::Integer) = (BasicBlock(b).stmts[i] = x)
 setindex!(b::Block, x, i::Integer) = (b[i] = Statement(b[i], expr = x))
 
 branch(block::Integer, args...; unless = nothing) =
@@ -352,7 +352,7 @@ end
 length(b::Block) = count(x -> x[1] == b.id, b.ir.defs)
 
 function successors(b::Block)
-  brs = basicblock(b).branches
+  brs = BasicBlock(b).branches
   succs = Int[br.block for br in brs if br.block > 0]
   all(br -> br.condition != nothing, brs) && b.id < length(blocks(b.ir)) && push!(succs, b.id+1)
   return [block(b.ir, succ) for succ in succs]
@@ -418,8 +418,8 @@ new variable. See also [`pushfirst!`](@ref), [`insert!`](@ref).
 function push!(b::Block, x::Statement)
   x = applyex(a -> push!(b, Statement(x, expr = a)), x)
   x = Statement(x)
-  push!(basicblock(b).stmts, x)
-  push!(b.ir.defs, (b.id, length(basicblock(b).stmts)))
+  push!(BasicBlock(b).stmts, x)
+  push!(b.ir.defs, (b.id, length(BasicBlock(b).stmts)))
   return Variable(length(b.ir.defs))
 end
 
@@ -429,7 +429,7 @@ push!(b::Block, x::Variable) = x
 
 # TODO make this work on nested Exprs.
 function insert!(b::Block, idx::Integer, x)
-  insert!(basicblock(b).stmts, idx, Statement(x))
+  insert!(BasicBlock(b).stmts, idx, Statement(x))
   for i = 1:length(b.ir.defs)
     c, j = b.ir.defs[i]
     if c == b.id && j >= idx
@@ -567,7 +567,7 @@ function Base.permute!(ir::IR, perm::AbstractVector)
 end
 
 function IR(b::Block)
-  ir = IR(copy(b.ir.defs), [copy(basicblock(b))], b.ir.lines, b.ir.meta)
+  ir = IR(copy(b.ir.defs), [copy(BasicBlock(b))], b.ir.lines, b.ir.meta)
   for i in 1:length(ir.defs)
     if ir.defs[i][1] == b.id
       ir.defs[i] = (1, ir.defs[i][2])
