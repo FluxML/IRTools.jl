@@ -86,13 +86,15 @@ let exports = :[
   IR, Block, BasicBlock, Variable, Statement, Branch, Pipe, CFG, branch, var, stmt, arguments, argtypes,
   branches, undef, unreachable, isreturn, isconditional, block!, branch!, argument!, return!,
   canbranch, returnvalue, emptyargs!, deletearg!, block, blocks, successors, predecessors,
-  xcall, exprtype, exprline, isexpr, insertafter!, explicitbranch!,
+  xcall, exprtype, exprline, isexpr, insertafter!, explicitbranch!, prewalk, postwalk,
+  prewalk!, postwalk!, finish, substitute!, substitute,
   # Passes/Analysis
   definitions, usages, dominators, domtree, domorder, domorder!, renumber,
   merge_returns!, expand!, prune!, ssa!, inlineable!, log!, pis!, func, evalir,
   Simple, Loop, Multiple, reloop,
   # Reflection, Dynamo
-  Meta, TypedMeta, meta, typed_meta, dynamo, transform, refresh, recurse!, self
+  Meta, TypedMeta, meta, typed_meta, dynamo, transform, refresh, recurse!, self,
+  varargs!, slots!,
   ].args
   for x in exports
     @eval const $x = Inner.$x
