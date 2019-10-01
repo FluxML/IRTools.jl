@@ -33,69 +33,22 @@ module Inner
 
 end
 
-"""
-    @code_ir f(args...)
-
-Convenience macro similar to `@code_lowered` or `@code_typed`. Retrieves the IR
-for the given function call.
-
-    julia> @code_ir gcd(10, 5)
-    1: (%1, %2, %3)
-      %4 = %2 == 0
-      br 4 unless %4
-    2: ...
-"""
-macro code_ir(ex...)
-  Inner.code_irm(ex...)
-end
-
-"""
-    @meta f(args...)
-
-Convenience macro for retrieving metadata without writing a full type signature.
-
-    julia> IRTools.@meta gcd(10, 5)
-    Metadata for gcd(a::T, b::T) where T<:Union{Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8} in Base at intfuncs.jl:31
-"""
-macro meta(ex)
-  isexpr(ex, :call) || error("@meta f(args...)")
-  f, args = ex.args[1], ex.args[2:end]
-  :(meta(Inner.typesof($(esc.((f, args...))...))))
-end
-
-"""
-    @typed_meta f(args...)
-
-Convenience macro for retrieving typed metadata without writing a full type signature.
-
-    julia> IRTools.@typed_meta gcd(10, 5)
-    Typed metadata for gcd(a::T, b::T) where T<:Union{Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8} in Base at intfuncs.jl:31
-"""
-macro typed_meta(ex)
-  isexpr(ex, :call) || error("@meta f(args...)")
-  f, args = ex.args[1], ex.args[2:end]
-  :(typed_meta(Inner.typesof($(esc.((f, args...))...))))
-end
-
-macro dynamo(ex...)
-  Inner.dynamom(__module__, ex...)
-end
-
 let exports = :[
-  # IR
-  IR, Block, BasicBlock, Variable, Statement, Branch, Pipe, CFG, branch, var, stmt, arguments, argtypes,
-  branches, undef, unreachable, isreturn, isconditional, block!, branch!, argument!, return!,
-  canbranch, returnvalue, emptyargs!, deletearg!, block, blocks, successors, predecessors,
-  xcall, exprtype, exprline, isexpr, insertafter!, explicitbranch!, prewalk, postwalk,
-  prewalk!, postwalk!, finish, substitute!, substitute,
-  # Passes/Analysis
-  definitions, usages, dominators, domtree, domorder, domorder!, renumber,
-  merge_returns!, expand!, prune!, ssa!, inlineable!, log!, pis!, func, evalir,
-  Simple, Loop, Multiple, reloop,
-  # Reflection, Dynamo
-  Meta, TypedMeta, meta, typed_meta, dynamo, transform, refresh, recurse!, self,
-  varargs!, slots!,
-  ].args
+      # IR
+      IR, Block, BasicBlock, Variable, Statement, Branch, Pipe, CFG, branch, var, stmt, arguments, argtypes,
+      branches, undef, unreachable, isreturn, isconditional, block!, branch!, argument!, return!,
+      canbranch, returnvalue, emptyargs!, deletearg!, block, blocks, successors, predecessors,
+      xcall, exprtype, exprline, isexpr, insertafter!, explicitbranch!, prewalk, postwalk,
+      prewalk!, postwalk!, finish, substitute!, substitute,
+      # Passes/Analysis
+      definitions, usages, dominators, domtree, domorder, domorder!, renumber,
+      merge_returns!, expand!, prune!, ssa!, inlineable!, log!, pis!, func, evalir,
+      Simple, Loop, Multiple, reloop,
+      # Reflection, Dynamo
+      Meta, TypedMeta, meta, typed_meta, dynamo, transform, refresh, recurse!, self,
+      varargs!, slots!,
+      ].args
+  append!(exports, Symbol.(["@code_ir", "@dynamo", "@meta", "@typed_meta"]))
   for x in exports
     @eval const $x = Inner.$x
   end

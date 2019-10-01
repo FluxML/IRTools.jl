@@ -33,7 +33,7 @@ end
 
 unesc(x) = prewalk(x -> isexpr(x, :escape) ? x.args[1] : x, x)
 
-function dynamom(mod, ex)
+macro dynamo(ex)
   @capture(shortdef(ex), (name_(args__) = body_) |
                          (name_(args__) where {Ts__} = body_)) ||
     error("@dynamo needs a function definition.")
@@ -48,11 +48,11 @@ function dynamom(mod, ex)
       $(esc(body))
     end
     $gendef
-    IRTools.refresh(::$T) where $(Ts...) = (Core.eval($mod, $(QuoteNode(unesc(gendef)))); return)
+    IRTools.refresh(::$T) where $(Ts...) = (Core.eval($__module__, $(QuoteNode(unesc(gendef)))); return)
   end
 end
 
-function code_irm(dy, ex)
+macro code_ir(dy, ex)
   @capture(ex, f_(args__)) || error("@code_dynamo f(x...)")
   :(transform(typeof($(esc(dy))), meta($typesof($(esc(f)), $(esc.(args)...)))))
 end
