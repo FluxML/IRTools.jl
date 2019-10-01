@@ -55,8 +55,6 @@ let exports = :[
   @eval module All
     $([:(import ..IRTools: $x) for x in exports]...)
     export $(exports...)
-    import IRTools: @code_ir, @dynamo, @meta, @typed_meta
-    export @code_ir, @dynamo, @meta, @typed_meta
   end
 end
 
