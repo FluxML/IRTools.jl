@@ -23,6 +23,7 @@ module Inner
 
   include("passes/passes.jl")
   include("passes/relooper.jl")
+  include("passes/stackifier.jl")
 
   include("interpret.jl")
   include("eval.jl")
