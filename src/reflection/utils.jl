@@ -4,7 +4,7 @@ end
 
 Base.show(io::IO, s::Slot) = print(io, "@", s.id)
 
-spatslot(b, i) = Slot(Symbol(:spat_, b, :_, i))
+phislot(b, i) = Slot(Symbol(:phi_, b, :_, i))
 
 # TODO: handle undef arguments properly.
 function slots!(ir::IR)
@@ -13,7 +13,7 @@ function slots!(ir::IR)
     # Block arguments
     if b.id != 1
       for (i, var) in enumerate(BasicBlock(b).args)
-        slots[var] = spatslot(b.id, i)
+        slots[var] = phislot(b.id, i)
       end
       empty!(BasicBlock(b).args)
       empty!(BasicBlock(b).argtypes)
@@ -22,7 +22,7 @@ function slots!(ir::IR)
     for br in BasicBlock(b).branches
       isreturn(br) && continue
       for (i, val) in enumerate(br.args)
-        push!(b, :($(spatslot(br.block, i)) = $val))
+        push!(b, :($(phislot(br.block, i)) = $val))
       end
       empty!(br.args)
     end
