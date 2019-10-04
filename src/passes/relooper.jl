@@ -154,7 +154,8 @@ function ast(cx::ASTCtx, cfg::Simple)
     if isreturn(br)
       @q (return $(rename(env, returnvalue(br)));)
     elseif haskey(cx.branches, br.block)
-      @q ($(Expr(cx.branches[br.block]));)
+      cx.branches[br.block] == :continue && cfg.next == nothing ? @q((;)) :
+        @q ($(Expr(cx.branches[br.block]));)
     elseif cfg.next isa Multiple && br.block in entry(cfg.next)
       n = findfirst(i -> br.block in entry(i), cfg.next.inner)
       ast(cx, cfg.next.inner[n])
@@ -197,11 +198,23 @@ function ast(cx::ASTCtx, cfg::Loop)
   for e in entry(cfg.next)
     cx.branches[e] = :break
   end
-  @q begin
-    while true
-      $(ast(cx, cfg.inner).args...)
+  brs = branches(block(cx.ir, cfg.inner.block))
+  if length(brs) == 2 && brs[1].block in entry(cfg.next) && brs[2].block in entry(cfg.inner.next)
+    exs, env = ast(cx, block(cx.ir, cfg.inner.block))
+    cond = unblock(@q ($(exs...); $(rename(env, brs[1].condition))))
+    @q begin
+      while $cond
+        $(ast(cx, cfg.inner.next).args...)
+      end
+      $(ast(cx, cfg.next).args...)
     end
-    $(ast(cx, cfg.next).args...)
+  else
+    @q begin
+      while true
+        $(ast(cx, cfg.inner).args...)
+      end
+      $(ast(cx, cfg.next).args...)
+    end
   end
 end
 
