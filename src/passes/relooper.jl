@@ -40,8 +40,8 @@ function reloop_loop(cfg::CFG, blocks, entry, done)
   body = filter(b -> any(e -> e in rs[b], entry), blocks)
   next = setdiff(blocks, body)
   Loop(reloop(cfg, blocks = body, entry = entry, done = union(done, entry)),
-       reloop(cfg, blocks = next, entry = union([intersect(rs[b], next) for b in body]...), done = done))
- end
+       reloop(cfg, blocks = next, entry = union([intersect(cfg[b], next) for b in body]...), done = done))
+end
 
 function reloop(cfg::CFG; blocks = 1:length(cfg.graph), entry = [1], done = Int[])
   (isempty(blocks) || isempty(entry)) && return
@@ -113,6 +113,7 @@ rename(env, ex) =
 entry(s::Simple) = [s.block]
 entry(s::Loop) = entry(s.inner)
 entry(s::Multiple) = union(entry.(s.inner)...)
+entry(s::Nothing) = Int[]
 
 struct ASTCtx
   ir::IR
@@ -134,7 +135,7 @@ function ast(cx::ASTCtx, b::Block)
     if cx.inline && get(usages, v, 0) == 1 && !(ex isa Slot) # TODO not correct
       env[v] = rename(env, ex)
     elseif get(usages, v, 0) == 0
-      push!(exs, rename(env, ex))
+      isexpr(ex) && push!(exs, rename(env, ex))
     else
       tmp = gensym("tmp")
       push!(exs, :($tmp = $(rename(env, ex))))
@@ -144,34 +145,49 @@ function ast(cx::ASTCtx, b::Block)
   return exs, env
 end
 
-ast(cx::ASTCtx, ::Nothing) = nothing
+ast(cx::ASTCtx, ::Nothing) = @q (;)
 
 function ast(cx::ASTCtx, cfg::Simple)
   b = block(cx.ir, cfg.block)
   exs, env = ast(cx, b)
-  x = :nothing
-  for br in reverse(branches(b))
-    y = isreturn(br) ?
-      Expr(:return, rename(env, returnvalue(br))) :
-      :(__label__ = $(br.block))
-    haskey(cx.branches, br.block) && (y = @q ($y; $(Expr(cx.branches[br.block]))))
-    isconditional(br) ? (x = :($(rename(env, br.condition)) ? $x : $y)) :
-      x = y
+  function nextblock(br)
+    if isreturn(br)
+      @q (return $(rename(env, returnvalue(br)));)
+    elseif haskey(cx.branches, br.block)
+      @q ($(Expr(cx.branches[br.block]));)
+    elseif cfg.next isa Multiple && br.block in entry(cfg.next)
+      n = findfirst(i -> br.block in entry(i), cfg.next.inner)
+      ast(cx, cfg.next.inner[n])
+    elseif cfg.next isa Multiple && br.block in entry(cfg.next.next)
+      ast(cx, cfg.next.next)
+    elseif br.block in entry(cfg.next)
+      ast(cx, cfg.next)
+    else
+      @q (;)
+    end
   end
-  push!(exs, x)
-  @q begin
-    $(exs...)
-    $(ast(cx, cfg.next))
+  @assert length(branches(b)) <= 2 "No more than 2 branches supported, currently."
+  ex = if length(branches(b)) == 1
+    @q begin
+      $(exs...)
+      $(nextblock(branches(b)[1]).args...)
+    end
+  else
+    @q begin
+      $(exs...)
+      if $(rename(env, branches(b)[1].condition))
+        $(nextblock(branches(b)[2]).args...)
+      else
+        $(nextblock(branches(b)[1]).args...)
+      end
+    end
   end
+  cfg.next isa Multiple && (ex = @q ($(ex.args...); $(ast(cx, cfg.next.next).args...)))
+  return ex
 end
 
 function ast(cx::ASTCtx, cfg::Multiple)
-  conds = [:(__label__ == $(s.block)) for s in cfg.inner]
-  body = [ast(cx, s) for s in cfg.inner]
-  ex = Expr(:elseif, conds[end], body[end])
-  ex = foldr((i, x) -> Expr(:elseif, conds[i], body[i], x), 1:length(conds)-1, init = ex)
-  ex.head = :if
-  return @q ($ex; $(ast(cx, cfg.next)))
+  error("Only structured control flow is currently supported.")
 end
 
 function ast(cx::ASTCtx, cfg::Loop)
@@ -183,13 +199,14 @@ function ast(cx::ASTCtx, cfg::Loop)
   end
   @q begin
     while true
-      $(ast(cx, cfg.inner))
+      $(ast(cx, cfg.inner).args...)
     end
-    $(ast(cx, cfg.next))
+    $(ast(cx, cfg.next).args...)
   end
 end
 
 function reloop(ir::IR; inline = true)
+  ir = explicitbranch!(copy(ir))
   cfg = reloop(CFG(ir))
   args = Dict(v => Symbol(:arg, i) for (i, v) in enumerate(arguments(ir)))
   ast(ASTCtx(ir, args, Dict(), inline), cfg)
