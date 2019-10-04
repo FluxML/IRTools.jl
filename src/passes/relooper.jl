@@ -114,7 +114,7 @@ entry(s::Simple) = [s.block]
 entry(s::Loop) = entry(s.inner)
 entry(s::Multiple) = union(entry.(s.inner)...)
 
-function ast(b::Block, args, branches)
+function ast(b::Block, args, branches, inline)
   usages = Dict()
   prewalk(b) do x
     x isa Variable && (usages[x] = get(usages, x, 0)+1)
@@ -124,7 +124,7 @@ function ast(b::Block, args, branches)
   env = Dict{Any,Any}(args)
   for v in keys(b)
     ex = b[v].expr
-    if get(usages, v, 0) == 1 && !(ex isa Slot) # TODO not correct
+    if inline && get(usages, v, 0) == 1 && !(ex isa Slot) # TODO not correct
       env[v] = rename(env, ex)
     elseif get(usages, v, 0) == 0
       push!(exs, rename(env, ex))
@@ -137,11 +137,11 @@ function ast(b::Block, args, branches)
   return exs, env
 end
 
-ast(ir::IR, ::Nothing; args, branches = Dict()) = nothing
+ast(ir::IR, ::Nothing; args, branches = Dict(), inline) = nothing
 
-function ast(ir::IR, cfg::Simple; args, branches = Dict())
+function ast(ir::IR, cfg::Simple; args, branches = Dict(), inline)
   b = block(ir, cfg.block)
-  exs, env = ast(b, args, branches)
+  exs, env = ast(b, args, branches, inline)
   x = :nothing
   for br in reverse(IRTools.branches(b))
     y = isreturn(br) ?
@@ -154,17 +154,17 @@ function ast(ir::IR, cfg::Simple; args, branches = Dict())
   push!(exs, x)
   @q begin
     $(exs...)
-    $(ast(ir, cfg.next, args = args, branches = branches))
+    $(ast(ir, cfg.next, args = args, branches = branches, inline = inline))
   end
 end
 
-function ast(ir::IR, cfg::Multiple; args, branches = Dict())
+function ast(ir::IR, cfg::Multiple; args, branches = Dict(), inline)
   conds = [:(__label__ == $(s.block)) for s in cfg.inner]
   body = [ast(ir, s, args = args, branches = branches) for s in cfg.inner]
   ex = Expr(:elseif, conds[end], body[end])
   ex = foldr((i, x) -> Expr(:elseif, conds[i], body[i], x), 1:length(conds)-1, init = ex)
   ex.head = :if
-  return @q ($ex; $(ast(ir, cfg.next; args = args, branches = branches)))
+  return @q ($ex; $(ast(ir, cfg.next; args = args, branches = branches, inline = inline)))
 end
 
 function ast(ir::IR, cfg::Loop; args, branches = Dict())
@@ -176,14 +176,14 @@ function ast(ir::IR, cfg::Loop; args, branches = Dict())
   end
   @q begin
     while true
-      $(ast(ir, cfg.inner, args = args, branches = branches))
+      $(ast(ir, cfg.inner, args = args, branches = branches, inline = inline))
     end
-    $(ast(ir, cfg.next, args = args, branches = branches))
+    $(ast(ir, cfg.next, args = args, branches = branches, inline = inline))
   end
 end
 
-function reloop(ir::IR)
+function reloop(ir::IR; inline = true)
   cfg = reloop(CFG(ir))
   args = Dict(v => Symbol(:arg, i) for (i, v) in enumerate(arguments(ir)))
-  ast(ir, cfg, args = args)
+  ast(ir, cfg, args = args, inline = inline)
 end
