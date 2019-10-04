@@ -114,17 +114,24 @@ entry(s::Simple) = [s.block]
 entry(s::Loop) = entry(s.inner)
 entry(s::Multiple) = union(entry.(s.inner)...)
 
-function ast(b::Block, args, branches, inline)
+struct ASTCtx
+  ir::IR
+  args::Dict{Variable,Symbol}
+  branches::Dict{Any,Any}
+  inline::Bool
+end
+
+function ast(cx::ASTCtx, b::Block)
   usages = Dict()
   prewalk(b) do x
     x isa Variable && (usages[x] = get(usages, x, 0)+1)
     x
   end
   exs = []
-  env = Dict{Any,Any}(args)
+  env = Dict{Any,Any}(cx.args)
   for v in keys(b)
     ex = b[v].expr
-    if inline && get(usages, v, 0) == 1 && !(ex isa Slot) # TODO not correct
+    if cx.inline && get(usages, v, 0) == 1 && !(ex isa Slot) # TODO not correct
       env[v] = rename(env, ex)
     elseif get(usages, v, 0) == 0
       push!(exs, rename(env, ex))
@@ -137,53 +144,53 @@ function ast(b::Block, args, branches, inline)
   return exs, env
 end
 
-ast(ir::IR, ::Nothing; args, branches = Dict(), inline) = nothing
+ast(cx::ASTCtx, ::Nothing) = nothing
 
-function ast(ir::IR, cfg::Simple; args, branches = Dict(), inline)
-  b = block(ir, cfg.block)
-  exs, env = ast(b, args, branches, inline)
+function ast(cx::ASTCtx, cfg::Simple)
+  b = block(cx.ir, cfg.block)
+  exs, env = ast(cx, b)
   x = :nothing
-  for br in reverse(IRTools.branches(b))
+  for br in reverse(branches(b))
     y = isreturn(br) ?
       Expr(:return, rename(env, returnvalue(br))) :
       :(__label__ = $(br.block))
-    haskey(branches, br.block) && (y = @q ($y; $(Expr(branches[br.block]))))
+    haskey(cx.branches, br.block) && (y = @q ($y; $(Expr(cx.branches[br.block]))))
     isconditional(br) ? (x = :($(rename(env, br.condition)) ? $x : $y)) :
       x = y
   end
   push!(exs, x)
   @q begin
     $(exs...)
-    $(ast(ir, cfg.next, args = args, branches = branches, inline = inline))
+    $(ast(cx, cfg.next))
   end
 end
 
-function ast(ir::IR, cfg::Multiple; args, branches = Dict(), inline)
+function ast(cx::ASTCtx, cfg::Multiple)
   conds = [:(__label__ == $(s.block)) for s in cfg.inner]
-  body = [ast(ir, s, args = args, branches = branches) for s in cfg.inner]
+  body = [ast(cx, s) for s in cfg.inner]
   ex = Expr(:elseif, conds[end], body[end])
   ex = foldr((i, x) -> Expr(:elseif, conds[i], body[i], x), 1:length(conds)-1, init = ex)
   ex.head = :if
-  return @q ($ex; $(ast(ir, cfg.next; args = args, branches = branches, inline = inline)))
+  return @q ($ex; $(ast(cx, cfg.next)))
 end
 
-function ast(ir::IR, cfg::Loop; args, branches = Dict())
+function ast(cx::ASTCtx, cfg::Loop)
   for e in entry(cfg)
-    branches[e] = :continue
+    cx.branches[e] = :continue
   end
   for e in entry(cfg.next)
-    branches[e] = :break
+    cx.branches[e] = :break
   end
   @q begin
     while true
-      $(ast(ir, cfg.inner, args = args, branches = branches, inline = inline))
+      $(ast(cx, cfg.inner))
     end
-    $(ast(ir, cfg.next, args = args, branches = branches, inline = inline))
+    $(ast(cx, cfg.next))
   end
 end
 
 function reloop(ir::IR; inline = true)
   cfg = reloop(CFG(ir))
   args = Dict(v => Symbol(:arg, i) for (i, v) in enumerate(arguments(ir)))
-  ast(ir, cfg, args = args, inline = inline)
+  ast(ASTCtx(ir, args, Dict(), inline), cfg)
 end
