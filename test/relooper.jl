@@ -40,4 +40,4 @@ ex = reloop(ir)
 ir = explicitbranch!(IR(@meta(gcd(1,1)), slots = true))
 ex = reloop(ir)
 
-@test_broken eval(:(let arg2 = 85, arg3 = 391; $ex; end)) == gcd(85, 391)
+@test eval(:(let arg2 = 85, arg3 = 391; $ex; end)) == gcd(85, 391)

@@ -109,37 +109,44 @@ entry(s::Simple) = [s.block]
 entry(s::Loop) = entry(s.inner)
 entry(s::Multiple) = union(entry.(s.inner)...)
 
-lower(ir, v::Variable; args) =
-  haskey(args, v) ? args[v] : postwalk(v -> lower(ir, v; args=args), ir[v].expr)
-
-lower(ir, s::Slot; args) = Symbol(:slot, s.id)
-lower(ir, v; args) = v
-
-function ast(b::Block, args)
+function ast(b::Block, args, branches)
   usages = Dict()
   prewalk(b) do x
     x isa Variable && (usages[x] = get(usages, x, 0)+1)
     x
   end
   exs = []
+  env = Dict{Any,Any}(args)
+  rename(ex) = prewalk(x -> x isa Variable ? env[x] :
+                            x isa Slot ? Symbol(x.id) :
+                            x, ex)
   for v in keys(b)
-    get(usages, v, 0) == 0 && push!(exs, lower(b, v; args = args))
+    ex = b[v].expr
+    if get(usages, v, 0) == 1 && !(ex isa Slot) # TODO not correct
+      env[v] = rename(ex)
+    elseif get(usages, v, 0) == 0
+      push!(exs, rename(ex))
+    else
+      tmp = gensym("tmp")
+      push!(exs, :($tmp = $(rename(ex))))
+      env[v] = tmp
+    end
   end
-  return exs
+  return exs, env
 end
 
 ast(ir::IR, ::Nothing; args, branches = Dict()) = nothing
 
 function ast(ir::IR, cfg::Simple; args, branches = Dict())
   b = block(ir, cfg.block)
-  exs = ast(b, args)
+  exs, env = ast(b, args, branches)
   x = :nothing
   for br in reverse(IRTools.branches(b))
     y = isreturn(br) ?
-      Expr(:return, lower(ir, returnvalue(br), args = args)) :
+      Expr(:return, env[returnvalue(br)]) :
       :(__label__ = $(br.block))
     haskey(branches, br.block) && (y = @q ($y; $(Expr(branches[br.block]))))
-    isconditional(br) ? (x = :($(lower(ir, br.condition, args=args)) ? $x : $y)) :
+    isconditional(br) ? (x = :($(env[br.condition]) ? $x : $y)) :
       x = y
   end
   push!(exs, x)
