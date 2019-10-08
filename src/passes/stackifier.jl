@@ -33,9 +33,41 @@ function strongconnected(cfg; blocks = 1:length(cfg))
   return components
 end
 
-function stackify(cfg::CFG; blocks = 1:length(cfg))
+struct Component
+  children::Vector{Union{Component,Int}}
+end
+
+blocks(c::Integer) = [c]
+blocks(c::Component) = reduce(vcat, blocks.(c.children))
+
+entries(c::Integer) = [c]
+entries(c::Component) = entries(first(c.children))
+
+function components(cfg::CFG; blocks = 1:length(cfg))
   # Assume the first block is the entry.
-  components = strongconnected(cfg, blocks = blocks[2:end])
-  [blocks[1],
-   [length(c) == 1 ? c[1] : stackify(cfg, blocks = sort(c)) for c in components]...]
+  cs = strongconnected(cfg, blocks = blocks[2:end])
+  Component([blocks[1],
+             [length(c) == 1 ? c[1] : components(cfg, blocks = sort(c)) for c in cs]...])
+end
+
+function branchesto(cfg::CFG, cs, i)
+  c = cs.children[i]
+  valid = union([entries(cs.children[j]) for j = 1:length(cs.children) if i != j]...)
+  preds = union([cfg'[c] for c in blocks(c)]...)
+  forw = filter(next -> next < entries(c)[1] && next in valid, preds)
+  back = filter(next -> next > entries(c)[1] && next in valid, preds)
+  forw = isempty(forw) ? nothing : minimum(forw)
+  back = isempty(back) ? nothing : maximum(back)
+  forw, back
+end
+
+function stackify(cfg::CFG, cs::Component = components(cfg), forw = [], back = [])
+  for (i, c) = enumerate(cs.children)
+    target = minimum(entries(c))
+    f, b = branchesto(cfg, cs, i)
+    f == nothing || push!(forw, f=>target)
+    b == nothing || push!(back, b=>target)
+    c isa Component && stackify(cfg, c, forw, back)
+  end
+  return forw, back
 end
