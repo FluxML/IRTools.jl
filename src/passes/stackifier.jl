@@ -50,10 +50,14 @@ function components(cfg::CFG; blocks = 1:length(cfg))
              [length(c) == 1 ? c[1] : components(cfg, blocks = sort(c)) for c in cs]...])
 end
 
+# Aaaargh
+_union(xs...) = union(xs...)
+_union() = []
+
 function branchesto(cfg::CFG, cs, i)
   c = cs.children[i]
-  valid = union([entries(cs.children[j]) for j = 1:length(cs.children) if i != j]...)
-  preds = union([cfg'[c] for c in blocks(c)]...)
+  valid = _union([entries(cs.children[j]) for j = 1:length(cs.children) if i != j]...)
+  preds = _union([cfg'[c] for c in blocks(c)]...)
   forw = filter(next -> next < entries(c)[1] && next in valid, preds)
   back = filter(next -> next > entries(c)[1] && next in valid, preds)
   forw = isempty(forw) ? nothing : minimum(forw)
