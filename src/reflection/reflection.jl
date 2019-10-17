@@ -177,7 +177,7 @@ end
 function code_irm(ex)
   isexpr(ex, :call) || error("@code_ir f(args...)")
   f, args = ex.args[1], ex.args[2:end]
-  :(code_ir($(esc(f)), typesof($(esc.(args)...))))
+  :($code_ir($(esc(f)), typesof($(esc.(args)...))))
 end
 
 """

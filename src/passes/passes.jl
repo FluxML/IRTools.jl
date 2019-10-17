@@ -1,3 +1,33 @@
+struct CFG
+  graph::Vector{Vector{Int}}
+end
+
+function CFG(ir::IR)
+  graph = Vector{Int}[]
+  for b in blocks(ir)
+    push!(graph, Int[])
+    for c in successors(b)
+      push!(graph[end], c.id)
+    end
+  end
+  return CFG(graph)
+end
+
+Base.:(==)(a::CFG, b::CFG) = a.graph == b.graph
+
+Base.length(c::CFG) = length(c.graph)
+Base.getindex(c::CFG, b::Integer) = c.graph[b]
+
+function Base.transpose(cfg::CFG)
+  cfg′ = CFG([Int[] for _ = 1:length(cfg)])
+  for i = 1:length(cfg), j in cfg[i]
+    push!(cfg′[j], i)
+  end
+  return cfg′
+end
+
+Base.adjoint(cfg::CFG) = transpose(cfg)
+
 function definitions(b::Block)
   defs = [Variable(i) for i = 1:length(b.ir.defs) if b.ir.defs[i][1] == b.id]
   append!(defs, arguments(b))
@@ -12,36 +42,44 @@ function usages(b::Block)
   return uses
 end
 
-function dominators(ir)
-  doms = Dict(b => Set(blocks(ir)) for b in blocks(ir))
-  worklist = blocks(ir)
-  while !isempty(worklist)
-    b = popfirst!(worklist)
+function dominators(cfg; entry = 1)
+  preds = cfg'
+  blocks = [1:length(cfg.graph);]
+  doms = Dict(b => Set(blocks) for b in blocks)
+  while !isempty(blocks)
+    b = popfirst!(blocks)
     # We currently special case the first block here,
     # since Julia sometimes creates blocks with no predecessors,
     # which otherwise throw off the analysis.
-    ds = isempty(predecessors(b)) ? Set([b, block(ir, 1)]) :
-      push!(intersect([doms[c] for c in predecessors(b)]...), b)
+    ds = isempty(preds[b]) ? Set([b, entry]) :
+      push!(intersect([doms[c] for c in preds[b]]...), b)
     if ds != doms[b]
       doms[b] = ds
-      for c in successors(b)
-        c in worklist || push!(worklist, c)
+      for c in cfg[b]
+        c in blocks || push!(blocks, c)
       end
     end
   end
   return doms
 end
 
-function domtree(ir, start = 1)
-  doms = dominators(ir)
-  doms = Dict(b => filter(c -> b != c && b in doms[c], blocks(ir)) for b in blocks(ir))
+function domtree(cfg; entry = 1)
+  doms = dominators(cfg, entry = entry)
+  doms = Dict(b => filter(c -> b != c && b in doms[c], 1:length(cfg)) for b in 1:length(cfg))
   children(b) = filter(c -> !(c in union(map(c -> doms[c], doms[b])...)), doms[b])
-  tree(b) = Pair{Int,Any}(b.id,tree.(children(b)))
-  tree(block(ir, start))
+  tree(b) = Pair{Int,Any}(b,tree.(children(b)))
+  tree(entry)
+end
+
+function idoms(cfg; entry = 1)
+  ds = zeros(Int, length(cfg))
+  _idoms((a, bs)) = foreach(((b, cs),) -> (ds[b] = a; _idoms(b=>cs)), bs)
+  _idoms(domtree(cfg, entry = entry))
+  return ds
 end
 
 function domorder(ir, start = 1; full = false)
-  tree = domtree(ir, start)
+  tree = domtree(CFG(ir), entry = start)
   flatten((b,cs)) = vcat(b, flatten.(cs)...)
   tree = flatten(tree)
   if full
@@ -133,6 +171,7 @@ function prune!(ir::IR)
 end
 
 function ssa!(ir::IR)
+  current = 1
   defs = Dict(b => Dict{Slot,Any}() for b in 1:length(ir.blocks))
   todo = Dict(b => Dict{Int,Vector{Slot}}() for b in 1:length(ir.blocks))
   function reaching(b, v)
@@ -140,7 +179,7 @@ function ssa!(ir::IR)
     b.id == 1 && return undef
     x = defs[b.id][v] = argument!(b, insert = false)
     for pred in predecessors(b)
-      if pred.id <= b.id
+      if pred.id < current
         for br in branches(pred, b)
           push!(br.args, reaching(pred, v))
         end
@@ -151,6 +190,7 @@ function ssa!(ir::IR)
     return x
   end
   for b in blocks(ir)
+    current = b.id
     rename(ex) = prewalk(x -> x isa Slot ? reaching(b, x) : x, ex)
     for (v, st) in b
       ex = st.expr
@@ -161,12 +201,26 @@ function ssa!(ir::IR)
         ir[v] = rename(ex)
       end
     end
-    for i = 1:length(basicblock(b).branches)
-      basicblock(b).branches[i] = rename(basicblock(b).branches[i])
+    for i = 1:length(BasicBlock(b).branches)
+      BasicBlock(b).branches[i] = rename(BasicBlock(b).branches[i])
     end
     for (succ, ss) in todo[b.id], br in branches(b, succ)
       append!(br.args, [reaching(b, v) for v in ss])
     end
+  end
+  return ir
+end
+
+function reachable_blocks(cfg::CFG)
+  bs = Int[]
+  reaches(b) = b in bs || (push!(bs, b); reaches.(cfg[b]))
+  reaches(1)
+  return bs
+end
+
+function trimblocks!(ir::IR)
+  for b in sort(setdiff(1:length(blocks(ir)), reachable_blocks(CFG(ir))), rev = true)
+    deleteblock!(ir, b)
   end
   return ir
 end
@@ -181,11 +235,17 @@ function log!(ir, msg)
   return ir
 end
 
+totype(T::Type) = T
+
+if isdefined(Core.Compiler, :PartialStruct)
+  totype(T::Core.Compiler.PartialStruct) = T.typ
+end
+
 function pis!(ir::IR)
   for (v, st) in ir
     ex = st.expr
     ex isa PiNode || continue
-    ir[v] = xcall(Core, :typeassert, ex.val, ex.typ)
+    ir[v] = xcall(Core, :typeassert, ex.val, totype(ex.typ))
   end
   return ir
 end

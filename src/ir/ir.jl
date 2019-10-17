@@ -42,11 +42,6 @@ struct Branch
   args::Vector{Any}
 end
 
-"""
-    Branch(br::Branch; condition, block, args)
-
-Copy of `br` with optionally updated fields.
-"""
 Branch(br::Branch; condition = br.condition,
                    block = br.block, args = br.args) =
   Branch(condition, block, args)
@@ -56,24 +51,28 @@ Branch(br::Branch; condition = br.condition,
 
 Check whether `br` has the form of a return branch (see [`Branch`](@Branch)).
 """
-isreturn(br::Branch) = br.block == 0 && length(br.args) == 1
+isreturn(b::Branch) = b.block == 0 && length(b.args) == 1
+
+returnvalue(b::Branch) = b.args[1]
 
 """
     isconditional(br::Branch)
 
 Check whether `br` has the form of a conditional branch (see [`Branch`](@Branch)).
 """
-isconditional(br::Branch) = br.condition != nothing
+isconditional(b::Branch) = b.condition != nothing
 
 Base.:(==)(a::Branch, b::Branch) =
   (a.condition, a.block, a.args) == (b.condition, b.block, b.args)
+
+Base.copy(br::Branch) = Branch(br.condition, br.block, copy(br.args))
 
 """
     arguments(br::Branch)
 
 Return the argument vector of the branch `br`.  (These are the arguments passed to a jumped-to block.)
 """
-arguments(br::Branch) = br.args
+arguments(b::Branch) = b.args
 
 const unreachable = Branch(nothing, 0, [])
 
@@ -129,7 +128,7 @@ end
 
 BasicBlock(stmts = []) = BasicBlock(stmts, [], [], Branch[])
 
-Base.copy(bb::BasicBlock) = BasicBlock(copy(bb.stmts), copy(bb.args), copy(bb.argtypes), copy(bb.branches))
+Base.copy(bb::BasicBlock) = BasicBlock(copy(bb.stmts), copy(bb.args), copy(bb.argtypes), copy.(bb.branches))
 
 """
     branches(bb::BasicBlock)
@@ -145,8 +144,7 @@ Return the argument vector of the basic block `bb`.  (These are the arguments gi
 to this block.)
 """
 arguments(bb::BasicBlock) = bb.args
-
-
+argtypes(bb::BasicBlock) = bb.argtypes
 
 """
     IR()
@@ -183,69 +181,48 @@ Base.copy(ir::IR) = IR(copy(ir.defs), copy.(ir.blocks), copy(ir.lines), ir.meta)
 
 length(ir::IR) = sum(x -> x[2] > 0, ir.defs)
 
-
-"""
-    block!(ir, [i])
-
-Create a new block into IR and return it.  If `i` is given, the block will be inserted at that
-position; otherwise, it will be appended at the end.  Block labels in branches are automatically 
-updated.
-"""
 function block!(ir::IR, i = length(blocks(ir))+1)
   insert!(ir.blocks, i, BasicBlock())
   if i != length(blocks(ir))
-    for b in blocks(ir), i = 1:length(branches(b))
-      br = branches(b)[i]
-      br.block >= i && (branches(b)[i] = Branch(br, block = br.block+1))
+    for b in blocks(ir), bi = 1:length(branches(b))
+      br = branches(b)[bi]
+      br.block >= i && (branches(b)[bi] = Branch(br, block = br.block+1))
     end
-  end
-  for (ii, (b, j)) = enumerate(ir.defs)
-    b >= i && (ir.defs[ii] = (b+1, j))
+    for (ii, (b, j)) = enumerate(ir.defs)
+      b >= i && (ir.defs[ii] = (b+1, j))
+    end
   end
   return block(ir, i)
 end
 
+function deleteblock!(ir::IR, i::Integer)
+  deleteat!(ir.blocks, i)
+  if i != length(blocks(ir))+1
+    for b in blocks(ir), bi = 1:length(branches(b))
+      br = branches(b)[bi]
+      br.block >= i && (branches(b)[bi] = Branch(br, block = br.block-1))
+    end
+  end
+  for (ii, (b, j)) = enumerate(ir.defs)
+    b == i && (ir.defs[ii] = (-1, -1))
+    b > i && (ir.defs[ii] = (b-1, j))
+  end
+  return
+end
 
-"""
-    Block(ir::IR, id::Int)
-
-Represents a basic block as part of the IR of a method (such that `b.ir.blocks[b.id]` is a 
-concrete `BasicBlock`).  This is more of an index than a code-holding object!
-"""
 struct Block
   ir::IR
   id::Int
 end
 
-"""
-    basicblock(b::Block)
-
-Get the `BasicBlock` which `b` represents in some method's IR.
-"""
-basicblock(b::Block) = b.ir.blocks[b.id]
-
-"""
-    branches(b::Block)
-
-Return the vector of branching instructions in block `b`.
-"""
-branches(b::Block) = branches(basicblock(b))
-
-"""
-    arguments(b::Block)
-
-Return the argument vector of the block `b`.  (These are the arguments given by the branch
-to this block.)
-"""
-arguments(b::Block) = arguments(basicblock(b))
-
-"""
-    arguments(ir::IR)
-
-Return the arguments of the method represented by `ir`.  These are given by the arguments of the
-first block in `ir`.  Remember that the method itself is passed as an additional first argument.
-"""
+BasicBlock(b::Block) = b.ir.blocks[b.id]
+branches(b::Block) = branches(BasicBlock(b))
+arguments(b::Block) = arguments(BasicBlock(b))
 arguments(ir::IR) = arguments(block(ir, 1))
+
+argtypes(b::Block) = argtypes(BasicBlock(b))
+argtypes(ir::IR) = argtypes(block(ir, 1))
+
 
 """
     canbranch(b::Block)
@@ -253,7 +230,7 @@ arguments(ir::IR) = arguments(block(ir, 1))
 Check whether the block `b` will branch either implicitly (by fallthrough) or explicitly 
 (by the last branch being conditional).
 """
-canbranch(b::Block) = length(branches(b)) == 0 || isconditional(branches(b)[end])
+canbranch(bb::Block) = length(branches(bb)) == 0 || isconditional(branches(bb)[end])
 
 """
     isreturn(b::Block)
@@ -294,10 +271,10 @@ function explicitbranch!(b::Block)
   if all(isconditional, branches(a))
     branch!(a, b.id)
   end
-  return
+  return b
 end
 
-explicitbranch!(ir::IR) = foreach(explicitbranch!, blocks(ir))
+explicitbranch!(ir::IR) = (foreach(explicitbranch!, blocks(ir)); return ir)
 
 """
     branches(b::Block, c::Block)
@@ -330,8 +307,10 @@ Retreive the return value of a block.
 """
 function returnvalue(b::Block)
   isreturn(branches(b)[end]) || error("Block does not return")
-  return branches(b)[end].args[1]
+  return returnvalue(branches(b)[end])
 end
+
+returntype(b::Block) = exprtype(b.ir, returnvalue(b))
 
 """
     argument!(block, [value, type]; at, insert)
@@ -364,7 +343,7 @@ function argument!(b::Block, value = nothing, type = Any; insert = true, at = le
   push!(b.ir.defs, (b.id, -at))
   arg = var(length(b.ir.defs))
   insert!(arguments(b), at, arg)
-  insert!(basicblock(b).argtypes, at, type)
+  insert!(BasicBlock(b).argtypes, at, type)
   if insert
     explicitbranch!(b)
     for c in blocks(b.ir), br in branches(c)
@@ -393,14 +372,15 @@ function emptyargs!(b::Block)
 end
 
 """
-    deletearg!(b::Block, i)
+    deletearg!(b::Block, i::Integer)
 
 Delete the `i`-th argument from block `b`, and automatically remove it from all
 branches to this block.
 """
-function deletearg!(b::Block, i)
+function deletearg!(b::Block, i::Integer)
   arg = arguments(b)[i]
   deleteat!(arguments(b), i)
+  deleteat!(argtypes(b), i)
   for c in blocks(b.ir), br in branches(c)
     br.block == b.id && deleteat!(arguments(br), i)
   end
@@ -466,9 +446,9 @@ function Base.haskey(ir::IR, x::Variable)
   return i > 0
 end
 
-getindex(b::Block, i::Integer) = basicblock(b).stmts[i]
+getindex(b::Block, i::Integer) = BasicBlock(b).stmts[i]
 getindex(b::Block, i::Variable) = b.ir[i]
-setindex!(b::Block, x::Statement, i::Integer) = (basicblock(b).stmts[i] = x)
+setindex!(b::Block, x::Statement, i::Integer) = (BasicBlock(b).stmts[i] = x)
 setindex!(b::Block, x, i::Integer) = (b[i] = Statement(b[i], expr = x))
 
 branch(block::Integer, args...; unless = nothing) =
@@ -485,7 +465,7 @@ and return it.
 function branch!(b::Block, block, args...; unless = nothing)
   brs = branches(b)
   unless === nothing && deleteat!(brs, findall(br -> br.condition === nothing, brs))
-  args = map(a -> push!(b, a), args)
+  args = map(a -> a isa Expr ? push!(b, a) : a, args)
   push!(brs, branch(block, args...; unless = unless))
   return b
 end
@@ -539,9 +519,9 @@ Returns all `Block`s from which you can reach `b` in one jump; basically, all x 
 See: [`predecessors`](@predecessors)
 """
 function successors(b::Block)
-  brs = basicblock(b).branches
+  brs = BasicBlock(b).branches
   succs = Int[br.block for br in brs if br.block > 0]
-  all(br -> br.condition != nothing, brs) && push!(succs, b.id+1)
+  all(br -> br.condition != nothing, brs) && b.id < length(blocks(b.ir)) && push!(succs, b.id+1)
   return [block(b.ir, succ) for succ in succs]
 end
 
@@ -613,8 +593,8 @@ new variable. See also [`pushfirst!`](@ref), [`insert!`](@ref).
 function push!(b::Block, x::Statement)
   x = applyex(a -> push!(b, Statement(x, expr = a)), x)
   x = Statement(x)
-  push!(basicblock(b).stmts, x)
-  push!(b.ir.defs, (b.id, length(basicblock(b).stmts)))
+  push!(BasicBlock(b).stmts, x)
+  push!(b.ir.defs, (b.id, length(BasicBlock(b).stmts)))
   return Variable(length(b.ir.defs))
 end
 
@@ -624,7 +604,7 @@ push!(b::Block, x::Variable) = x
 
 # TODO make this work on nested Exprs.
 function insert!(b::Block, idx::Integer, x)
-  insert!(basicblock(b).stmts, idx, Statement(x))
+  insert!(BasicBlock(b).stmts, idx, Statement(x))
   for i = 1:length(b.ir.defs)
     c, j = b.ir.defs[i]
     if c == b.id && j >= idx
@@ -762,6 +742,18 @@ function Base.permute!(ir::IR, perm::AbstractVector)
     branches(b)[i].block > 0 || continue
     br = branches(b)[i]
     branches(b)[i] = Branch(br, block = iperm[br.block])
+  end
+  return ir
+end
+
+function IR(b::Block)
+  ir = IR(copy(b.ir.defs), [copy(BasicBlock(b))], b.ir.lines, b.ir.meta)
+  for i in 1:length(ir.defs)
+    if ir.defs[i][1] == b.id
+      ir.defs[i] = (1, ir.defs[i][2])
+    else
+      ir.defs[i] = (-1, -1)
+    end
   end
   return ir
 end

@@ -21,5 +21,5 @@ end
 
 func(ir::IR) = func(Main, ir)
 
-eval(m::Module, ir::IR, args...) = invokelatest(func(m, ir), args...)
-eval(ir::IR, args...) = eval(Main, ir, args...)
+evalir(m::Module, ir::IR, args...) = invokelatest(func(m, ir), args...)
+evalir(ir::IR, args...) = evalir(Main, ir, args...)

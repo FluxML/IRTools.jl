@@ -11,6 +11,7 @@ walk(x::PiNode, inner, outer) = outer(PiNode(inner(x.val), x.typ))
 
 xcall(mod::Module, f::Symbol, args...) = Expr(:call, GlobalRef(mod, f), args...)
 xcall(f::Symbol, args...) = xcall(Base, f, args...)
+xcall(f, args...) = Expr(:call, f, args...)
 
 map(f, br::Branch) = Branch(br, condition = f(br.condition), args = f.(br.args))
 
@@ -27,7 +28,7 @@ function map!(f, b::BasicBlock)
 end
 
 function map!(f, b::Block)
-  map!(f, basicblock(b))
+  map!(f, BasicBlock(b))
 end
 
 function map(f, ir::IR)
@@ -44,7 +45,7 @@ end
 walk(st::Statement, inner, outer) = Statement(st, expr = inner(st.expr))
 walk(bb::BasicBlock, inner, outer) = map(inner, bb)
 walk(bb::Branch, inner, outer) = map(inner, bb)
-walk(b::Block, inner, outer) = walk(basicblock(b), inner, outer)
+walk(b::Block, inner, outer) = walk(BasicBlock(b), inner, outer)
 
 walk(ir::IR, inner, outer) = outer(map(inner, ir))
 

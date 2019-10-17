@@ -51,7 +51,7 @@ end
 
 @dynamo err(a...) = 0//0
 
-@test_throws IRTools.CompileError err(+, 2, 3)
+@test_throws IRTools.Inner.CompileError err(+, 2, 3)
 
 mutable struct Context
   calls::Int
@@ -78,7 +78,7 @@ x = argument!(ir)
 y = push!(ir, xcall(:*, x, x))
 return!(ir, y)
 
-@test IRTools.eval(ir, 5) == 25
+@test IRTools.evalir(ir, 5) == 25
 
 ir = IR()
 x = argument!(ir)
@@ -86,7 +86,7 @@ y = argument!(ir)
 z = push!(ir, xcall(:*, x, y))
 return!(ir, z)
 
-@test IRTools.eval(ir, 5, 3) == 15
+@test IRTools.evalir(ir, 5, 3) == 15
 
 function pow(x, n)
   r = 1

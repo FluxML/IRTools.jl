@@ -4,7 +4,7 @@ end
 
 Base.show(io::IO, s::Slot) = print(io, "@", s.id)
 
-spatslot(b, i) = Slot(Symbol(:spat_, b, :_, i))
+phislot(b, i) = Slot(Symbol(:phi_, b, :_, i))
 
 # TODO: handle undef arguments properly.
 function slots!(ir::IR)
@@ -12,17 +12,17 @@ function slots!(ir::IR)
   for b in blocks(ir)
     # Block arguments
     if b.id != 1
-      for (i, var) in enumerate(basicblock(b).args)
-        slots[var] = spatslot(b.id, i)
+      for (i, var) in enumerate(BasicBlock(b).args)
+        slots[var] = phislot(b.id, i)
       end
-      empty!(basicblock(b).args)
-      empty!(basicblock(b).argtypes)
+      empty!(BasicBlock(b).args)
+      empty!(BasicBlock(b).argtypes)
     end
     # Branches
-    for br in basicblock(b).branches
+    for br in BasicBlock(b).branches
       isreturn(br) && continue
       for (i, val) in enumerate(br.args)
-        push!(b, :($(spatslot(br.block, i)) = $val))
+        push!(b, :($(phislot(br.block, i)) = $val))
       end
       empty!(br.args)
     end
@@ -54,9 +54,9 @@ function varargs!(meta, ir::IR, n = 0)
   allTs = !isva ?
     Any[argTs[1:n]..., Tuple{Ts...}] :
     Any[argTs[1:n]..., typed ? Tuple{Ts[1:end-1]...,Ts[end].parameters...} : Any]
-  empty!(argTs); append!(argTs, allTs)
   args = copy(ir.blocks[1].args)
-  deletearg!(ir, length(argTs)+1:length(args))
+  deletearg!(ir, length(allTs)+1:length(args))
+  empty!(argTs); append!(argTs, allTs)
   argmap = Dict{Variable,Any}()
   argis = 1:(length(Ts))
   newargs = map(reverse(argis)) do i

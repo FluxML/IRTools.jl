@@ -2,7 +2,7 @@ module Wrap
 
 using MacroTools: isexpr, prewalk
 import Core: SSAValue, GotoNode
-import Core.Compiler: CodeInfo, IRCode, CFG, BasicBlock, ReturnNode,
+import Core.Compiler: CodeInfo, IRCode, CFG, ReturnNode,
   just_construct_ssa, compact!, OptimizationState, GotoIfNot, PhiNode, StmtRange
 
 PhiNode(x, y) = PhiNode(Any[x...], Any[y...])
@@ -16,8 +16,8 @@ end
 
 sparams(opt::OptimizationState) = VERSION > v"1.2-" ? Any[t.val for t in opt.sptypes] : Any[opt.sp...]
 
-using ..IRTools
-import ..IRTools: IR, Variable, Statement, Branch, TypedMeta, Meta, block!,
+using ..Inner, ..IRTools
+import ..Inner: IR, Variable, Statement, Branch, BasicBlock, TypedMeta, Meta, block!,
   unreachable, varmap, argument!, branch!, return!
 
 vars(ex) = prewalk(x -> x isa SSAValue ? Variable(x.id) : x, ex)
@@ -52,8 +52,8 @@ function rewrite_phis!(ir::IR, offset)
   for (v, st) in ir
     ex = st.expr
     ex isa PhiNode || continue
-    to, = IRTools.blockidx(ir, v)
-    bb = IRTools.basicblock(to)
+    to, = IRTools.Inner.blockidx(ir, v)
+    bb = BasicBlock(to)
     push!(bb.args, v)
     push!(bb.argtypes, st.type)
     for (from, arg) in zip(ex.edges, ex.values), br in branches_for!(ir, from+offset=>to.id)
@@ -100,7 +100,7 @@ function IRCode(ir::IR)
         defs[arg] = Core.Compiler.Argument(i)
       end
     else
-      @assert isempty(IRTools.basicblock(b).args)
+      @assert isempty(BasicBlock(b).args)
     end
     for (v, st) in b
       defs[v] = Variable(length(stmts)+1)
@@ -109,7 +109,7 @@ function IRCode(ir::IR)
       push!(types, st.type)
       push!(lines, st.line)
     end
-    for br in IRTools.basicblock(b).branches
+    for br in BasicBlock(b).branches
       if IRTools.isreturn(br)
         x = get(defs, br.args[1], br.args[1]) |> unvars
         push!(stmts, ReturnNode(x))
@@ -128,7 +128,7 @@ function IRCode(ir::IR)
   ranges = StmtRange.([1, index[1:end-1]...], index.-1)
   succs = map.(x -> x.id, IRTools.successors.(IRTools.blocks(ir)))
   preds = map.(x -> x.id, IRTools.predecessors.(IRTools.blocks(ir)))
-  bs = BasicBlock.(ranges, preds, succs)
+  bs = Core.Compiler.BasicBlock.(ranges, preds, succs)
   cfg = CFG(bs, index)
   flags = [0x00 for _ in stmts]
   sps = VERSION > v"1.2-" ? [] : Core.svec()
@@ -164,7 +164,7 @@ function IR(ci::CodeInfo, nargs::Integer; meta = nothing)
   _rename = Dict()
   rename(ex) = prewalk(ex) do x
     haskey(_rename, x) && return _rename[x]
-    x isa Core.SlotNumber && return IRTools.Slot(slotname(ci, x))
+    x isa Core.SlotNumber && return Inner.Slot(slotname(ci, x))
     return x
   end
   for i = 1:nargs
