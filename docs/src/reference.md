@@ -23,9 +23,12 @@ IRTools.Statement
 IRTools.BasicBlock
 IRTools.Block
 IRTools.arguments
+IRTools.argtypes
 IRTools.branches
 IRTools.isconditional
 IRTools.isreturn
+IRTools.returnvalue
+IRTools.returntype
 IRTools.canbranch
 IRTools.basicblock
 IRTools.explicitbranch!
@@ -34,6 +37,7 @@ IRTools.argument!
 IRTools.emptyargs!
 IRTools.deletearg!
 IRTools.block!
+IRTools.deleteblock!
 IRTools.block
 IRTools.blocks
 IRTools.successors
