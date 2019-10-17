@@ -25,9 +25,9 @@ var(id::Integer) = Variable(id)
 """
     Branch(condition::Any, block::Int, args::Vector{Any})
 
-Represents a generalized branching instruction, consisting of a `condition` (usually a `Variable` 
-of boolean type), a target `block`, and a vector of `args` passed to the jump target.  There are three types 
-of branches that exist by the following convention:
+Represents a generalized branching instruction, consisting of a `condition` (usually a `Variable` of
+boolean type), a target `block`, and a vector of `args` passed to the jump target.  There are three
+types of branches that exist by the following convention:
 
 - A return branch is represented by `Branch(nothing, 0, [<return value>])`.
 - An unconditional branch is represented by `Branch(nothing, <target>, [<optional arguments ...>])`
@@ -53,6 +53,11 @@ Check whether `br` has the form of a return branch (see [`Branch`](@Branch)).
 """
 isreturn(b::Branch) = b.block == 0 && length(b.args) == 1
 
+"""
+    returnvalue(b::Branch)
+
+Get the return value of `b` (the first argument of the branch).
+"""
 returnvalue(b::Branch) = b.args[1]
 
 """
@@ -70,9 +75,8 @@ Base.copy(br::Branch) = Branch(br.condition, br.block, copy(br.args))
 """
     arguments(br::Branch)
 
-Return the argument vector of the branch `br`.  (These are the arguments passed to a jumped-to block.)
-"""
-arguments(b::Branch) = b.args
+Return the argument vector of the branch `br`.  (These are the arguments passed to a jumped-to
+block.)  """ arguments(b::Branch) = b.args
 
 const unreachable = Branch(nothing, 0, [])
 
@@ -115,16 +119,11 @@ const stmt = Statement
                argtypes::Vector{Any}, branches::Vector{Branch})
     BasicBlock([stmts])
 
-Represents a [basic block](https://en.wikipedia.org/wiki/Static_single_assignment_form#Converting_to_SSA))
-of code in SSA form.  A block consists of a list of statements, followed by optional branching 
-instructions and arguments, with optional types.
-"""
-struct BasicBlock
-  stmts::Vector{Statement}
-  args::Vector{Any}
-  argtypes::Vector{Any}
-  branches::Vector{Branch}
-end
+Represents a [basic
+block](https://en.wikipedia.org/wiki/Static_single_assignment_form#Converting_to_SSA)) of code in
+SSA form.  A block consists of a list of statements, followed by optional branching instructions and
+arguments, with optional types.  """ struct BasicBlock stmts::Vector{Statement} args::Vector{Any}
+argtypes::Vector{Any} branches::Vector{Branch} end
 
 BasicBlock(stmts = []) = BasicBlock(stmts, [], [], Branch[])
 
@@ -144,6 +143,13 @@ Return the argument vector of the basic block `bb`.  (These are the arguments gi
 to this block.)
 """
 arguments(bb::BasicBlock) = bb.args
+
+"""
+    argtypes(bb::BasicBlock)
+
+Return the argument types of the basic block `bb`.  (These are the arguments given by the branch
+to this block.)
+"""
 argtypes(bb::BasicBlock) = bb.argtypes
 
 """
@@ -181,6 +187,14 @@ Base.copy(ir::IR) = IR(copy(ir.defs), copy.(ir.blocks), copy(ir.lines), ir.meta)
 
 length(ir::IR) = sum(x -> x[2] > 0, ir.defs)
 
+"""
+    block!(ir::IR)
+    block!(ir::IR, i)
+
+Insert a new block in `ir`.  If `i` is given, the block is inserted at this position, otherwise it
+is appended at the end.  Branches in all other blocks are updated to preserve the original
+behaviour.
+"""
 function block!(ir::IR, i = length(blocks(ir))+1)
   insert!(ir.blocks, i, BasicBlock())
   if i != length(blocks(ir))
@@ -195,6 +209,12 @@ function block!(ir::IR, i = length(blocks(ir))+1)
   return block(ir, i)
 end
 
+"""
+    deleteblock!(ir::IR, i)
+
+Delete the block at position `i`.  Branches in all other blocks are updated to preserve the original
+behaviour.
+"""
 function deleteblock!(ir::IR, i::Integer)
   deleteat!(ir.blocks, i)
   if i != length(blocks(ir))+1
@@ -214,6 +234,7 @@ struct Block
   ir::IR
   id::Int
 end
+
 
 BasicBlock(b::Block) = b.ir.blocks[b.id]
 branches(b::Block) = branches(BasicBlock(b))
@@ -310,6 +331,11 @@ function returnvalue(b::Block)
   return returnvalue(branches(b)[end])
 end
 
+"""
+    returnvalue(block)
+
+Retreive the return type of a block.
+"""
 returntype(b::Block) = exprtype(b.ir, returnvalue(b))
 
 """
