@@ -315,6 +315,9 @@ function branches(b::Block, c::Block)
   filter(br -> br.block == c.id, branches(b))
 end
 
+branches(b::Block, c::Integer) = branches(b, block(b.ir, c))
+
+
 """
     returnvalue(b::Block)
 
