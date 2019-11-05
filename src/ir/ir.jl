@@ -124,8 +124,11 @@ const stmt = Statement
 Represents a [basic
 block](https://en.wikipedia.org/wiki/Static_single_assignment_form#Converting_to_SSA)) of code in
 SSA form.  A block consists of a list of statements, followed by optional branching instructions and
-arguments, with optional types.  """ struct BasicBlock stmts::Vector{Statement} args::Vector{Any}
-argtypes::Vector{Any} branches::Vector{Branch} end
+arguments, with optional types.
+"""
+struct BasicBlock stmts::Vector{Statement} args::Vector{Any}    
+    argtypes::Vector{Any} branches::Vector{Branch}
+end
 
 BasicBlock(stmts = []) = BasicBlock(stmts, [], [], Branch[])
 
@@ -157,8 +160,6 @@ argtypes(bb::BasicBlock) = bb.argtypes
 """
     IR()
     IR(metadata; slots = false)
-    IR(defs::Vector{Tuple{Int,Int}}, blocks::Vector{BasicBlock},
-       lines::Vector{LineInfoNode}, meta::Any)
 
 Represents a fragment of SSA-form code.
 
@@ -174,6 +175,8 @@ As a shortcut, IR can be constructed directly from a type signature, e.g.
       %4 = %2 == 0
       br 4 unless %4
     2: ...
+
+See also: [`code_ir`](@code_ir)
 """
 struct IR
   defs::Vector{Tuple{Int,Int}}
