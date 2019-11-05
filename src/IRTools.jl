@@ -23,6 +23,7 @@ module Inner
 
   include("passes/passes.jl")
   include("passes/relooper.jl")
+  include("passes/stackifier.jl")
 
   include("interpret.jl")
   include("eval.jl")
@@ -43,7 +44,7 @@ let exports = :[
       # Passes/Analysis
       definitions, usages, dominators, domtree, domorder, domorder!, renumber,
       merge_returns!, expand!, prune!, ssa!, inlineable!, log!, pis!, func, evalir,
-      Simple, Loop, Multiple, reloop,
+      Simple, Loop, Multiple, reloop, stackify,
       # Reflection, Dynamo
       Meta, TypedMeta, meta, typed_meta, dynamo, transform, refresh, recurse!, self,
       varargs!, slots!,
