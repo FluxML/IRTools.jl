@@ -304,7 +304,6 @@ explicitbranch!(ir::IR) = (foreach(explicitbranch!, blocks(ir)); return ir)
 
 """
     branches(b::Block, c::Block)
-    branches(b::Block, c::Integer)
 
 Return the vector of all branches from block `b` to block `c`.
 """
@@ -312,8 +311,6 @@ function branches(b::Block, c::Block)
   c.id == b.id+1 && explicitbranch!(c)
   filter(br -> br.block == c.id, branches(b))
 end
-
-branches(b::Block, c::Integer) = branches(b, block(b.ir, c))
 
 """
     returnvalue(b::Block)
