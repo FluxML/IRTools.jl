@@ -76,7 +76,9 @@ Base.copy(br::Branch) = Branch(br.condition, br.block, copy(br.args))
     arguments(br::Branch)
 
 Return the argument vector of the branch `br`.  (These are the arguments passed to a jumped-to
-block.)  """ arguments(b::Branch) = b.args
+block.)  
+"""
+arguments(b::Branch) = b.args
 
 const unreachable = Branch(nothing, 0, [])
 
@@ -248,10 +250,10 @@ argtypes(ir::IR) = argtypes(block(ir, 1))
 """
     canbranch(b::Block)
 
-Check whether the block `b` will branch either implicitly (by fallthrough) or explicitly 
-(by the last branch being conditional).
+Check whether adding a branch to block `b` will be valid (i.e, the last existing branch is not
+conditional).
 """
-canbranch(bb::Block) = length(branches(bb)) == 0 || isconditional(branches(bb)[end])
+canbranch(b::Block) = length(branches(b)) == 0 || isconditional(branches(b)[end])
 
 """
     isreturn(b::Block)
@@ -311,7 +313,7 @@ end
 branches(b::Block, c::Integer) = branches(b, block(b.ir, c))
 
 """
-    returnvalue(block)
+    returnvalue(b::Block)
 
 Retreive the return value of a block.
 
@@ -332,7 +334,7 @@ function returnvalue(b::Block)
 end
 
 """
-    returnvalue(block)
+    returnvalue(b::Block)
 
 Retreive the return type of a block.
 """
