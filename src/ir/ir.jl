@@ -9,7 +9,7 @@ struct Undefined end
 const undef = Undefined()
 
 """
-    Variable(id::Int)
+    Variable(id::Integer)
     var(id::Integer)
 
 Represents an SSA variable. Primarily used as an index into `IR` objects.
