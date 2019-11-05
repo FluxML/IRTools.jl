@@ -126,7 +126,9 @@ block](https://en.wikipedia.org/wiki/Static_single_assignment_form#Converting_to
 SSA form.  A block consists of a list of statements, followed by optional branching instructions and
 arguments, with optional types.
 """
-struct BasicBlock stmts::Vector{Statement} args::Vector{Any}    
+struct BasicBlock
+    stmts::Vector{Statement}
+    args::Vector{Any}    
     argtypes::Vector{Any}
     branches::Vector{Branch}
 end
