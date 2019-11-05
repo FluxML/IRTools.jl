@@ -127,7 +127,8 @@ SSA form.  A block consists of a list of statements, followed by optional branch
 arguments, with optional types.
 """
 struct BasicBlock stmts::Vector{Statement} args::Vector{Any}    
-    argtypes::Vector{Any} branches::Vector{Branch}
+    argtypes::Vector{Any}
+    branches::Vector{Branch}
 end
 
 BasicBlock(stmts = []) = BasicBlock(stmts, [], [], Branch[])
