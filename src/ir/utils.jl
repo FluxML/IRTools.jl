@@ -54,14 +54,14 @@ postwalk!(f, ir::Union{IR,Block}) = map!(x -> postwalk(f, x), ir)
 
 varmap(f, x) = prewalk(x -> x isa Variable ? f(x) : x, x)
 
-exprtype(x::GlobalRef) = isconst(x.mod, x.name) ? Typeof(getfield(x.mod, x.name)) : Any
+exprtype(x::GlobalRef; typeof = Typeof) = isconst(x.mod, x.name) ? typeof(getfield(x.mod, x.name)) : Any
 
-exprtype(ir::IR, x::GlobalRef) = exprtype(x)
-exprtype(ir::IR, x::QuoteNode) = Typeof(x.value)
-exprtype(ir::IR, x::Expr) = error(x)
-exprtype(ir::IR, x) = Typeof(x)
+exprtype(ir::IR, x::GlobalRef; typeof = Typeof) = exprtype(x, typeof = typeof)
+exprtype(ir::IR, x::QuoteNode; typeof = Typeof) = typeof(x.value)
+exprtype(ir::IR, x::Expr; typeof = Typeof) = error(x)
+exprtype(ir::IR, x; typeof = Typeof) = typeof(x)
 
-function exprtype(ir::IR, x::Variable)
+function exprtype(ir::IR, x::Variable; typeof = Typeof)
   b, i = get(ir.defs, x.id, (-1, -1))
   b == -1 && error("No such variable $x")
   if i > 0
