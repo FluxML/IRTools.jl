@@ -91,7 +91,7 @@ julia> @code_ir f(1)
   return %5
 ```
 
-Basic blocks are actually like mini-functions, and they accept a series of arguments. In this case block `3` takes an argument called `%5` that tells it what to return. If you follow the branches as if they were function calls, you'll see that this IR behaves the same the same as the code we wrote down.
+Basic blocks are actually like mini-functions, and they accept a series of arguments. In this case block `3` takes an argument called `%5` that tells it what to return. If you follow the branches as if they were function calls, you'll see that this IR behaves the same as the code we wrote down.
 
 Why not just write this as `%2 = -%2`? It's important to understand that variables in SSA-form IR are *immutable*, in the same sense that variables in functional languages are. For this reason you'll never see a statement like `%2 = %2 + 1`. This again makes analysing IR programmatically a lot easier, because when code uses `%2` you know exactly which definition that refers to.
 
@@ -199,7 +199,7 @@ julia> block(ir, 2)
 
 ## Evaluating IR
 
-For testing purposes, you can run IR using `IRTools.eval`.
+For testing purposes, you can run IR using `IRTools.evalir`.
 
 ```jldoctest eval
 julia> using IRTools
