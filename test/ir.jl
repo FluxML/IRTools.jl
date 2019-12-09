@@ -1,5 +1,5 @@
 using IRTools, Test
-using IRTools: IR
+using IRTools: IR, @dynamo
 
 function f(x)
     N = 4
@@ -22,3 +22,13 @@ function f(a, b)
 end
 
 @test @code_ir(f(1, 2)) isa IR
+
+# issue 30
+@dynamo function foo(a...)
+    ir = IR(a...)
+    return ir
+end
+
+mylog2(x) = ccall((:log2, Base.Math.libm), Float64, (Float64,), x)
+
+@test foo(mylog2, 3.3) === mylog2(3.3)
