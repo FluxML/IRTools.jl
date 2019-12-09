@@ -625,7 +625,7 @@ new variable. See also [`pushfirst!`](@ref), [`insert!`](@ref).
       %2 = %1 * %1
 """
 function push!(b::Block, x::Statement)
-  if !isexpr(x.expr, :foreigncall)
+  if !isexpr(x.expr, :foreigncall) # needed to avoid #30
     x = applyex(a -> push!(b, Statement(x, expr = a)), x)
   end
   x = Statement(x)
