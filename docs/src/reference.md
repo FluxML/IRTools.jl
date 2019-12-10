@@ -26,14 +26,14 @@ IRTools.branches
 IRTools.isconditional
 IRTools.isreturn
 IRTools.returnvalue
-IRTools.Inner.returntype
+IRTools.returntype
 IRTools.canbranch
 IRTools.explicitbranch!
 IRTools.argument!
 IRTools.emptyargs!
 IRTools.deletearg!
 IRTools.block!
-IRTools.Inner.deleteblock!
+IRTools.deleteblock!
 IRTools.block
 IRTools.blocks
 IRTools.successors
