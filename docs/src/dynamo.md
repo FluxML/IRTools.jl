@@ -134,7 +134,7 @@ julia> @dynamo function foo2(a...)
          end
          for (x, st) in ir
            isexpr(st.expr, :call) || continue
-           ir[x] = Expr(:call, foo2, st.expr.args...)
+           ir[x] = xcall(foo2, st.expr.args...)
          end
          return ir
        end
@@ -249,13 +249,13 @@ count! (generic function with 1 method)
 We can turn this into a dynamo which inserts a single statement into the IR of each function, to increase the count by one.
 
 ```jldoctest counter
-julia> using IRTools: @dynamo, IR, self, recurse!
+julia> using IRTools: @dynamo, IR, xcall, self, recurse!
 
 julia> @dynamo function (c::Counter)(m...)
          ir = IR(m...)
          ir == nothing && return
          recurse!(ir)
-         pushfirst!(ir, Expr(:call, count!, self))
+         pushfirst!(ir, xcall(count!, self))
          return ir
        end
 ```

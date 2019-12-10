@@ -33,7 +33,7 @@ types of branches that exist by the following convention:
 - An unconditional branch is represented by `Branch(nothing, <target>, [<optional arguments ...>])`
 - A conditional branch is represented by `Branch(<condition>, <target>, [<optional arguments ...>])`
 
-See also: [`branch!`](@branch!), [`return!`](@return), [`isreturn`](@isreturn), 
+See also: [`branch!`](@branch!), [`return!`](@return), [`isreturn`](@isreturn),
 [`isconditional`](@isconditional)
 """
 struct Branch
@@ -76,7 +76,7 @@ Base.copy(br::Branch) = Branch(br.condition, br.block, copy(br.args))
     arguments(br::Branch)
 
 Return the argument vector of the branch `br`.  (These are the arguments passed to a jumped-to
-block.)  
+block.)
 """
 arguments(b::Branch) = b.args
 
@@ -117,18 +117,18 @@ const stmt = Statement
 
 
 """
-    BasicBlock(stmts::Vector{Statement}, args::Vector{Any}, 
+    BasicBlock(stmts::Vector{Statement}, args::Vector{Any},
                argtypes::Vector{Any}, branches::Vector{Branch})
     BasicBlock([stmts])
 
 Represents a [basic
-block](https://en.wikipedia.org/wiki/Static_single_assignment_form#Converting_to_SSA)) of code in
+block](https://en.wikipedia.org/wiki/Static_single_assignment_form#Converting_to_SSA) of code in
 SSA form.  A block consists of a list of statements, followed by optional branching instructions and
 arguments, with optional types.
 """
 struct BasicBlock
     stmts::Vector{Statement}
-    args::Vector{Any}    
+    args::Vector{Any}
     argtypes::Vector{Any}
     branches::Vector{Branch}
 end
@@ -493,7 +493,7 @@ branch(block::Block, args...; kw...) = branch(block.id, args...; kw...)
 """
     branch!(b::Block, block, args...; unless = nothing)
 
-Add to block `b` a new branch to `block`, with arguments `args` and condition `unless`, 
+Add to block `b` a new branch to `block`, with arguments `args` and condition `unless`,
 and return it.
 """
 function branch!(b::Block, block, args...; unless = nothing)
@@ -547,7 +547,7 @@ length(b::Block) = count(x -> x[1] == b.id, b.ir.defs)
 """
     successors(b::Block)
 
-Returns all `Block`s from which you can reach `b` in one jump; basically, all x such that 
+Returns all `Block`s from which you can reach `b` in one jump; basically, all x such that
 `branches(x, b)` is non-empty.  Implicit jumps by fall-through are noticed as well.
 
 See: [`predecessors`](@predecessors)
@@ -562,7 +562,7 @@ end
 """
     predecessors(b::Block)
 
-Returns all `Block`s of which `b` is a successor; basically, all x such that 
+Returns all `Block`s of which `b` is a successor; basically, all x such that
 `branches(x, b)` is non-empty.  Implicit jumps by fall-through are noticed as well.
 
 See: [`successors`](@successors)
