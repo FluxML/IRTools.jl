@@ -145,7 +145,7 @@ function ast(cx::ASTCtx, b::Block)
   return exs, env
 end
 
-ast(cx::ASTCtx, ::Nothing) = @q (;)
+ast(cx::ASTCtx, ::Nothing) = @q begin end
 
 function ast(cx::ASTCtx, cfg::Simple)
   b = block(cx.ir, cfg.block)
@@ -154,7 +154,7 @@ function ast(cx::ASTCtx, cfg::Simple)
     if isreturn(br)
       @q (return $(rename(env, returnvalue(br)));)
     elseif haskey(cx.branches, br.block)
-      cx.branches[br.block] == :continue && cfg.next == nothing ? @q((;)) :
+      cx.branches[br.block] == :continue && cfg.next == nothing ? @q(begin end) :
         @q ($(Expr(cx.branches[br.block]));)
     elseif cfg.next isa Multiple && br.block in entry(cfg.next)
       n = findfirst(i -> br.block in entry(i), cfg.next.inner)
@@ -164,7 +164,7 @@ function ast(cx::ASTCtx, cfg::Simple)
     elseif br.block in entry(cfg.next)
       ast(cx, cfg.next)
     else
-      @q (;)
+      @q begin end
     end
   end
   @assert length(branches(b)) <= 2 "No more than 2 branches supported, currently."
