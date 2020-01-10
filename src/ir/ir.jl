@@ -625,7 +625,9 @@ new variable. See also [`pushfirst!`](@ref), [`insert!`](@ref).
       %2 = %1 * %1
 """
 function push!(b::Block, x::Statement)
-  x = applyex(a -> push!(b, Statement(x, expr = a)), x)
+  if !isexpr(x.expr, :foreigncall) # needed to avoid https://github.com/MikeInnes/IRTools.jl/issues/30
+    x = applyex(a -> push!(b, Statement(x, expr = a)), x)
+  end
   x = Statement(x)
   push!(BasicBlock(b).stmts, x)
   push!(b.ir.defs, (b.id, length(BasicBlock(b).stmts)))
