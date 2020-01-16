@@ -175,6 +175,8 @@ function IR(ci::CodeInfo, nargs::Integer; meta = nothing)
     ex = ci.code[i]
     if ex isa Core.NewvarNode
       continue
+    elseif isexpr(ex, :enter)
+      push!(ir, Expr(:enter, findfirst(==(ex.args[1]), bs)+1))
     elseif isexpr(ex, GotoNode)
       branch!(ir, findfirst(==(ex.label), bs)+1)
     elseif isexpr(ex, :gotoifnot)
