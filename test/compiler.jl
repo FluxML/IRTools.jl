@@ -33,6 +33,31 @@ foo(x) = y = x > 0 ? x + 1 : x - 1
 
 @test passthrough(() -> [1, 2, 3]) == [1, 2, 3]
 
+function err(f)
+  try
+    f()
+  catch e
+    e
+  end
+end
+
+@test passthrough(err, () -> 2+2) == 4
+@test passthrough(err, () -> 0//0) isa ArgumentError
+
+function err2(f)
+    x = 1
+    y = 1
+    try
+        y = f()
+    catch e
+      x, y
+    end
+    x, y
+end
+
+@test passthrough(err2, () -> 2+2) == (1, 4)
+@test passthrough(err2, () -> 0//0) == (1, 1)
+
 @dynamo function mullify(a...)
   ir = IR(a...)
   ir == nothing && return

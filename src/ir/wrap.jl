@@ -176,7 +176,7 @@ function IR(ci::CodeInfo, nargs::Integer; meta = nothing)
     if ex isa Core.NewvarNode
       continue
     elseif isexpr(ex, :enter)
-      push!(ir, Expr(:enter, findfirst(==(ex.args[1]), bs)+1))
+      _rename[Core.SSAValue(i)] = push!(ir, Expr(:enter, findfirst(==(ex.args[1]), bs)+1))
     elseif isexpr(ex, GotoNode)
       branch!(ir, findfirst(==(ex.label), bs)+1)
     elseif isexpr(ex, :gotoifnot)

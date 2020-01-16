@@ -170,10 +170,22 @@ function prune!(ir::IR)
   return ir
 end
 
+function slotsused(bl)
+  slots = []
+  walk(ex) = prewalk(x -> (x isa Slot && !(x in slots) && push!(slots, x); x), ex)
+  for (v, st) in bl
+    ex = st.expr
+    isexpr(ex, :(=)) ? walk(ex.args[2]) : walk(ex)
+  end
+  return slots
+end
+
 function ssa!(ir::IR)
   current = 1
   defs = Dict(b => Dict{Slot,Any}() for b in 1:length(ir.blocks))
   todo = Dict(b => Dict{Int,Vector{Slot}}() for b in 1:length(ir.blocks))
+  catches = Dict()
+  handlers = []
   function reaching(b, v)
     haskey(defs[b.id], v) && return defs[b.id][v]
     b.id == 1 && return undef
@@ -189,6 +201,12 @@ function ssa!(ir::IR)
     end
     return x
   end
+  function catchbranch!(v, slot = nothing)
+    for handler in handlers
+      args = reaching.((block(ir, v),), catches[handler])
+      insertafter!(ir, v, Expr(:catch, handler, args...))
+    end
+  end
   for b in blocks(ir)
     current = b.id
     rename(ex) = prewalk(x -> x isa Slot ? reaching(b, x) : x, ex)
@@ -196,7 +214,14 @@ function ssa!(ir::IR)
       ex = st.expr
       if isexpr(ex, :(=)) && ex.args[1] isa Slot
         defs[b.id][ex.args[1]] = rename(ex.args[2])
+        catchbranch!(v, ex.args[1])
         delete!(ir, v)
+      elseif isexpr(ex, :enter)
+        catches[ex.args[1]] = slotsused(block(ir, ex.args[1]))
+        push!(handlers, ex.args[1])
+        catchbranch!(v)
+      elseif isexpr(ex, :leave) && !haskey(catches, current)
+        pop!(handlers)
       else
         ir[v] = rename(ex)
       end
