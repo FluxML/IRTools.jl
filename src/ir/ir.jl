@@ -442,6 +442,7 @@ deletearg!(ir::IR, i) = deletearg!(block(ir, 1), i)
 Return the `i`-th `Block` of `ir`.
 """
 block(ir::IR, i) = Block(ir, i)
+block(ir::IR, v::Variable) = blockidx(ir, v)[1]
 
 """
     blocks(ir)
@@ -541,6 +542,8 @@ function Base.delete!(ir::IR, i::Variable)
   ir.defs[i.id] = (-1, -1)
   return ir
 end
+
+Base.delete!(b::Block, i::Variable) = delete!(b.ir, i)
 
 length(b::Block) = count(x -> x[1] == b.id, b.ir.defs)
 
@@ -717,6 +720,9 @@ function insert!(ir::IR, i::Variable, x; after = false)
     insert!(b, i+after, x)
   end
 end
+
+insert!(b::Block, i::Variable, x; after = false) =
+  insert!(b.ir, i, x; after = after)
 
 """
     insertafter!(ir, v, x)

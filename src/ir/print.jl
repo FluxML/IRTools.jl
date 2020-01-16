@@ -3,6 +3,10 @@ import Base: show
 # TODO: real expression printing
 Base.show(io::IO, x::Variable) = print(io, "%", x.id)
 
+const printers = Dict{Symbol,Any}()
+
+print_stmt(io::IO, ex::Expr) = get(printers, ex.head, print)(io, ex)
+
 print_stmt(io::IO, ex) = print(io, ex)
 
 function show(io::IO, b::Branch)
@@ -68,4 +72,26 @@ function print_stmt(io::IO, ex::IR)
   io = IOContext(io, :indent=>get(io, :indent, 0)+2)
   println(io)
   show(io, ex)
+end
+
+printers[:enter] = function (io, ex)
+  print(io, "try #$(ex.args[1])")
+end
+
+printers[:leave] = function (io, ex)
+  print(io, "end try")
+end
+
+printers[:catch] = function (io, ex)
+  print(io, "catch $(ex.args[1])")
+  args = ex.args[2:end]
+  if !isempty(args)
+    print(io, " (")
+    join(io, repr.(args), ", ")
+    print(io, ")")
+  end
+end
+
+printers[:pop_exception] = function (io, ex)
+  print(io, "pop exception $(ex.args[1])")
 end

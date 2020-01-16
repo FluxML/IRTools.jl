@@ -18,6 +18,16 @@ function slots!(ir::IR)
       empty!(BasicBlock(b).args)
       empty!(BasicBlock(b).argtypes)
     end
+    # Catch branches
+    for (v, st) in b
+      isexpr(st.expr, :catch) || continue
+      target = st.expr.args[1]
+      args   = st.expr.args[2:end]
+      for (i, val) in enumerate(args)
+        insert!(b, v, :($(phislot(target, i)) = $val))
+      end
+      delete!(b, v)
+    end
     # Branches
     for br in BasicBlock(b).branches
       isreturn(br) && continue
