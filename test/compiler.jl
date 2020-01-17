@@ -58,6 +58,18 @@ end
 @test passthrough(err2, () -> 2+2) == (1, 4)
 @test passthrough(err2, () -> 0//0) == (1, 1)
 
+function err3(f)
+  y = 1
+  try
+    y = f()
+  catch
+  end
+  return y
+end
+
+@test passthrough(err3, () -> 2+2) == 4
+@test_broken passthrough(err3, () -> 0//0) == 1
+
 @dynamo function mullify(a...)
   ir = IR(a...)
   ir == nothing && return
