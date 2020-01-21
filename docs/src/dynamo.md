@@ -277,7 +277,7 @@ julia> c.count
 
 !!! warning
 
-    A current usability issue with the dynamo is that it is _not_ automatically updated when you redefine functions. For example:
+    On Julia versions older than 1.3, a current usability issue with the dynamo is that it is _not_ automatically updated when you redefine functions. For example:
 
     ```julia
     julia> @dynamo roundtrip(a...) = IR(a...)
@@ -303,3 +303,5 @@ julia> c.count
     julia> roundtrip(foo, 5)
     6
     ```
+    
+    On versions newer than 1.3, `IRTools.refresh` is not required. 
