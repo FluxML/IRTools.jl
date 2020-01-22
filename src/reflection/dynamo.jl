@@ -35,9 +35,10 @@ unesc(x) = prewalk(x -> isexpr(x, :escape) ? x.args[1] : x, x)
 
 function lifttype(x)
   isexpr(x, :(::)) || return x
-  T = x.args[2]
+  named = length(x.args) == 2
+  T = named ? x.args[2] : x.args[1]
   T = :(Type{$T})
-  Expr(:(::), x.args[1], T)
+  named ? Expr(:(::), x.args[1], T) : Expr(:(::), T)
 end
 
 macro dynamo(ex)
