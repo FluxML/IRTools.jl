@@ -33,6 +33,14 @@ end
 
 unesc(x) = prewalk(x -> isexpr(x, :escape) ? x.args[1] : x, x)
 
+function lifttype(x)
+  isexpr(x, :(::)) || return x
+  named = length(x.args) == 2
+  T = named ? x.args[2] : x.args[1]
+  T = :(Type{$T})
+  named ? Expr(:(::), x.args[1], T) : Expr(:(::), T)
+end
+
 macro dynamo(ex)
   @capture(shortdef(ex), (name_(args__) = body_) |
                          (name_(args__) where {Ts__} = body_)) ||
@@ -44,7 +52,7 @@ macro dynamo(ex)
   gendef = :(@generated ($f::$T)($(esc(:args))...) where $(Ts...) = return IRTools.dynamo($f, args...))
   quote
     $(isexpr(name, :(::)) || esc(:(function $name end)))
-    function IRTools.transform(::Type{<:$T}, $(esc.(args)...)) where $(Ts...)
+    function IRTools.transform(::Type{<:$T}, $(esc.(lifttype.(args))...)) where $(Ts...)
       $(esc(body))
     end
     $gendef
