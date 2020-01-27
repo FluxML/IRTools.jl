@@ -15,6 +15,12 @@ end
 function transform end
 function refresh end
 
+function fallthrough(args...)
+  Expr(:block,
+       Expr(:meta, :inline),
+       Expr(:call, [:(args[$i]) for i = 1:length(args)]...))
+end
+
 function dynamo(f, args...)
   try
     ir = transform(f, args...)::Union{IR,Expr,Nothing}
@@ -22,7 +28,7 @@ function dynamo(f, args...)
     rethrow(CompileError(f, args, e))
   end
   ir isa Expr && return ir
-  ir == nothing && return :(args[1](args[2:end]...))
+  ir == nothing && return fallthrough(args...)
   m = ir.meta::Meta
   ir = varargs!(m, ir)
   argnames!(m, :args)
