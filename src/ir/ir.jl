@@ -367,7 +367,8 @@ go; by default it is appended to the end of the argument list.
 Unless `insert = false`, if there are branches to this block, they will be updated to pass `value`
 (`nothing` by default) as an argument (by default, `insert = true`).
 """
-function argument!(b::Block, value = nothing, type = Any; insert = true, at = length(arguments(b))+1)
+function argument!(b::Block, value = nothing, t = Any;
+                   insert = true, at = length(arguments(b))+1, type = t)
   if at < length(arguments(b))
     for i = 1:length(b.ir.defs)
       (c, j) = b.ir.defs[i]

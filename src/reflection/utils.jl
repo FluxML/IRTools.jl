@@ -1,8 +1,14 @@
 struct Slot
   id::Symbol
+  type
 end
 
-Base.show(io::IO, s::Slot) = print(io, "@", s.id)
+Slot(id) = Slot(id, Any)
+
+function Base.show(io::IO, s::Slot)
+  print(io, "@", s.id)
+  s.type != Any && print(io, "::", s.type)
+end
 
 phislot(b, i) = Slot(Symbol(:phi_, b, :_, i))
 

@@ -189,7 +189,7 @@ function ssa!(ir::IR)
   function reaching(b, v)
     haskey(defs[b.id], v) && return defs[b.id][v]
     b.id == 1 && return undef
-    x = defs[b.id][v] = argument!(b, insert = false)
+    x = defs[b.id][v] = argument!(b, type = v.type, insert = false)
     for pred in predecessors(b)
       if pred.id < current
         for br in branches(pred, b)
