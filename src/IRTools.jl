@@ -36,7 +36,7 @@ end
 
 let exports = :[
       # IR
-      IR, Block, BasicBlock, Variable, Statement, Branch, Pipe, CFG, branch, var, stmt, arguments, argtypes,
+      IR, Block, BasicBlock, Variable, Statement, Branch, Pipe, CFG, Slot, branch, var, stmt, arguments, argtypes,
       branches, undef, unreachable, isreturn, isconditional, block!, deleteblock!, branch!, argument!, return!,
       canbranch, returnvalue, returntype, emptyargs!, deletearg!, block, blocks, successors, predecessors,
       xcall, exprtype, exprline, isexpr, insertafter!, explicitbranch!, prewalk, postwalk,
