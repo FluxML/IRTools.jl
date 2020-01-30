@@ -103,7 +103,7 @@ function splicearg!(meta, ir::IR, name)
   arg = var(length(ir.defs))
   pushfirst!(args, arg)
   pushfirst!(ir.blocks[1].argtypes, Any)
-  pushfirst!(meta.code.slotnames, name)
+  meta == nothing || pushfirst!(meta.code.slotnames, name)
   return arg
 end
 

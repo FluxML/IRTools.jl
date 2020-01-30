@@ -21,6 +21,9 @@ function fallthrough(args...)
        Expr(:call, [:(args[$i]) for i = 1:length(args)]...))
 end
 
+# Used only for its CodeInfo
+dummy(args...) = nothing
+
 function dynamo(f, args...)
   try
     ir = transform(f, args...)::Union{IR,Expr,Nothing}
@@ -29,10 +32,16 @@ function dynamo(f, args...)
   end
   ir isa Expr && return ir
   ir == nothing && return fallthrough(args...)
-  m = ir.meta::Meta
-  ir = varargs!(m, ir)
-  argnames!(m, :args)
-  _self = splicearg!(m, ir, Symbol("#self#"))
+  if ir.meta isa Meta
+    m = ir.meta
+    ir = varargs!(m, ir)
+    argnames!(m, :args)
+    _self = splicearg!(m, ir, Symbol("#self#"))
+  else
+    m = @meta dummy(1)
+    m.code.method_for_inference_limit_heuristics = nothing
+    _self = splicearg!(nothing, ir, Symbol("#self#"))
+  end
   prewalk!(x -> x === self ? _self : x, ir)
   return update!(m.code, ir)
 end
