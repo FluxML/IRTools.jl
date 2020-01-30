@@ -141,3 +141,13 @@ ir[var(8)] = xcall(:+, var(5), var(2))
 mul = func(ir)
 
 @test mul(nothing, 10, 3) == 31
+
+@dynamo function ir_add(_, _)
+  ir = IR()
+  args = argument!(ir)
+  x = push!(ir, xcall(:getindex, args, 1))
+  y = push!(ir, xcall(:getindex, args, 2))
+  return!(ir, xcall(:+, x, y))
+end
+
+@test ir_add(5, 2) == 7
