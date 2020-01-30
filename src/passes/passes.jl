@@ -42,6 +42,15 @@ function usages(b::Block)
   return uses
 end
 
+function usecounts(ir::IR)
+  counts = Dict{Variable,Int}()
+  prewalk(ir) do x
+    x isa Variable && (counts[x] = get(counts, x, 0)+1)
+    return x
+  end
+  return counts
+end
+
 function dominators(cfg; entry = 1)
   preds = cfg'
   blocks = [1:length(cfg.graph);]
@@ -150,12 +159,14 @@ function expand!(ir::IR)
 end
 
 function prune!(ir::IR)
+  usages = usecounts(ir)
   worklist = blocks(ir)
   while !isempty(worklist)
     b = popfirst!(worklist)
     isempty(arguments(b)) && continue
     brs = filter(br -> br.block == b.id, [br for a in blocks(ir) for br in branches(a)])
     isempty(brs) && continue
+    # Redundant due to all inputs being the same
     inputs = [setdiff(in, (a,)) for (a, in) in zip(arguments(b), zip(arguments.(brs)...))]
     del = findall(x -> length(x) == 1, inputs)
     rename = Dict(zip(arguments(b)[del], first.(inputs[del])))
@@ -165,6 +176,18 @@ function prune!(ir::IR)
       for c in successors(b)
         c in worklist || push!(worklist, c)
       end
+    end
+    # Redundant due to not being used
+    unused = findall(x -> get(usages, x, 0) == 0, arguments(b))
+    if !isempty(unused)
+      for a in predecessors(b)
+        for br in branches(a, b), i in unused
+          arguments(br)[i] isa Variable &&
+            (usages[arguments(br)[i]] -= 1)
+        end
+        a in worklist || push!(worklist, a)
+      end
+      deletearg!(b, unused)
     end
   end
   return ir
