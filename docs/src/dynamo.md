@@ -277,7 +277,7 @@ julia> c.count
 
 !!! warning
 
-    On Julia versions older than 1.3, a current usability issue with the dynamo is that it is _not_ automatically updated when you redefine functions. For example:
+    On Julia versions older than 1.3, dynamos are _not_ automatically updated when you redefine functions. For example:
 
     ```julia
     julia> @dynamo roundtrip(a...) = IR(a...)
