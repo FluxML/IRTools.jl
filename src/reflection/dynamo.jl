@@ -36,12 +36,12 @@ function dynamo(f, args...)
     m = ir.meta
     ir = varargs!(m, ir)
     argnames!(m, :args)
-    _self = splicearg!(m, ir, Symbol("#self#"))
+    pushfirst!(m.code.slotnames, Symbol("#self#"))
   else
     m = @meta dummy(1)
     m.code.method_for_inference_limit_heuristics = nothing
-    _self = splicearg!(nothing, ir, Symbol("#self#"))
   end
+  _self = splicearg!(ir)
   prewalk!(x -> x === self ? _self : x, ir)
   return update!(m.code, ir)
 end

@@ -142,7 +142,7 @@ mul = func(ir)
 
 @test mul(nothing, 10, 3) == 31
 
-@dynamo function add(_, _)
+@dynamo function ir_add(_, _)
   ir = IR()
   args = argument!(ir)
   x = push!(ir, xcall(:getindex, args, 1))
@@ -150,4 +150,4 @@ mul = func(ir)
   return!(ir, xcall(:+, x, y))
 end
 
-@test add(5, 2) == 7
+@test ir_add(5, 2) == 7

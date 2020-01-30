@@ -97,13 +97,12 @@ function varargs!(meta, ir::IR, n = 0)
 end
 
 # TODO this is hacky and leaves `ir.defs` incorrect
-function splicearg!(meta, ir::IR, name)
+function splicearg!(ir::IR)
   args = arguments(ir)
   push!(ir.defs, (1, -1))
   arg = var(length(ir.defs))
   pushfirst!(args, arg)
   pushfirst!(ir.blocks[1].argtypes, Any)
-  meta == nothing || pushfirst!(meta.code.slotnames, name)
   return arg
 end
 
