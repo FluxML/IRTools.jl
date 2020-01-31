@@ -304,4 +304,4 @@ julia> c.count
     6
     ```
     
-    On versions newer than 1.3, `IRTools.refresh` is not required. 
+    With Julia 1.3 and later, `IRTools.refresh` is not required. 
