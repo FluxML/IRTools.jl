@@ -151,3 +151,16 @@ mul = func(ir)
 end
 
 @test ir_add(5, 2) == 7
+
+
+const LACall = XCall(LinearAlgebra)
+ir = IR()
+x = argument!(ir)
+y = push!(ir, LACall.lu(x, check = true))
+z = push!(ir, BaseCall.getproperty(y, QuoteNode(:L)))
+w = push!(ir, BaseCall.getindex(z, 1:2, 2:2))
+d = push!(ir, :(2))
+return!(ir, BaseCall.dropdims(w, dims = d))
+
+R = [1 0; 0 1]
+@test IRTools.evalir(ir, R) == [0, 1]
