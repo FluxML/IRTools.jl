@@ -39,7 +39,7 @@ let exports = :[
       IR, Block, BasicBlock, Variable, Statement, Branch, Pipe, CFG, Slot, branch, var, stmt, arguments, argtypes,
       branches, undef, unreachable, isreturn, isconditional, block!, deleteblock!, branch!, argument!, return!,
       canbranch, returnvalue, returntype, emptyargs!, deletearg!, block, blocks, successors, predecessors,
-      xcall, exprtype, exprline, isexpr, insertafter!, explicitbranch!, prewalk, postwalk,
+      XCall, xcall, exprtype, exprline, isexpr, insertafter!, explicitbranch!, prewalk, postwalk,
       prewalk!, postwalk!, finish, substitute!, substitute,
       # Passes/Analysis
       definitions, usages, dominators, domtree, domorder, domorder!, renumber,
