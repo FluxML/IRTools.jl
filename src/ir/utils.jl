@@ -1,4 +1,4 @@
-import Base: map, map!
+import Base: getproperty, map, map!
 import Core.Compiler: PhiNode, PiNode, ssamap, userefs
 import MacroTools: walk
 
@@ -76,6 +76,11 @@ end
 
 @eval begin
     # since var"#module#" does not work in pre-1.3
+    
+    """
+    `ModCall.bla(args...; kwargs...)` is a hack to produce the properly namespaced expression for
+    Mod.bla(args...; kwargs...), equivalent to `xcall(Mod, :bla, args...)`.
+    """
     struct XCall
         $(Symbol("#module#"))::Module
     end
@@ -91,10 +96,6 @@ function getproperty(x::XCall, name::Symbol)
 end
 
 
-"""
-`BaseCall.<bla>(args...; kwargs...)` is a hack to produce the properly namespaced expression for
-BaseCall.<bla>(args...; kwargs...).
-"""
 const BaseCall = XCall(Base)
 
 
