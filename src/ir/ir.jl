@@ -538,6 +538,8 @@ function setindex!(ir::IR, x, i::Variable)
   b[i] = x
 end
 
+setindex!(b::Block, x, i::Variable) = setindex!(b.ir, x, i)
+
 function Base.delete!(ir::IR, i::Variable)
   ir[i] = nothing
   ir.defs[i.id] = (-1, -1)
