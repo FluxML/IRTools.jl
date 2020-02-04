@@ -38,7 +38,13 @@ function slots!(ir::IR)
     for br in BasicBlock(b).branches
       isreturn(br) && continue
       for (i, val) in enumerate(br.args)
-        push!(b, :($(phislot(br.block, i)) = $val))
+        ϕ = phislot(br.block, i)
+        if val in keys(b) && !isexpr(b[val].expr, :(=))
+          b[val] = :($ϕ = $(b[val].expr))
+          slots[val] = ϕ
+        else
+          push!(b, :($ϕ = $val))
+        end
       end
       empty!(br.args)
     end
