@@ -151,3 +151,20 @@ mul = func(ir)
 end
 
 @test ir_add(5, 2) == 7
+
+@dynamo function test_lambda(x)
+  λ = IR()
+  self = argument!(λ)
+  y = argument!(λ)
+  x = push!(λ, xcall(:getindex, self, 1))
+  return!(λ, xcall(:+, x, y))
+  ir = IR()
+  args = argument!(ir)
+  x = push!(ir, xcall(:getindex, args, 1))
+  return!(ir, Expr(:lambda, λ, x))
+end
+
+let
+  f = test_lambda(3)
+  @test f(6) == 9
+end
