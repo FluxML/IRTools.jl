@@ -160,7 +160,7 @@ slotname(ci, s) = Symbol(:_, s.id)
 
 function IR(ci::CodeInfo, nargs::Integer; meta = nothing)
   bs = blockstarts(ci)
-  ir = IR([ci.linetable...], meta = meta)
+  ir = IR(Core.LineInfoNode[ci.linetable...], meta = meta)
   _rename = Dict()
   rename(ex) = prewalk(ex) do x
     haskey(_rename, x) && return _rename[x]
