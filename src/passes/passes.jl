@@ -30,7 +30,6 @@ Base.adjoint(cfg::CFG) = transpose(cfg)
 
 function definitions(b::Block)
   defs = [Variable(i) for i = 1:length(b.ir.defs) if b.ir.defs[i][1] == b.id]
-  append!(defs, arguments(b))
 end
 
 function usages(b::Block)
@@ -72,13 +71,15 @@ function dominators(cfg; entry = 1)
   return doms
 end
 
-function domtree(cfg; entry = 1)
+function domtree(cfg::CFG; entry = 1)
   doms = dominators(cfg, entry = entry)
   doms = Dict(b => filter(c -> b != c && b in doms[c], 1:length(cfg)) for b in 1:length(cfg))
   children(b) = filter(c -> !(c in union(map(c -> doms[c], doms[b])...)), doms[b])
   tree(b) = Pair{Int,Any}(b,tree.(children(b)))
   tree(entry)
 end
+
+domtree(ir::IR; entry = 1) = domtree(CFG(ir), entry = entry)
 
 function idoms(cfg; entry = 1)
   ds = zeros(Int, length(cfg))
