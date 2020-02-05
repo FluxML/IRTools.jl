@@ -128,9 +128,10 @@ macro code_ir(dy, ex)
   :(transform(typeof($(esc(dy))), meta($typesof($(esc(f)), $(esc.(args)...)))))
 end
 
-function recurse!(ir)
+function recurse!(ir, to = self)
   for (x, st) in ir
     isexpr(st.expr, :call) || continue
-    ir[x] = Expr(:call, self, st.expr.args...)
+    ir[x] = Expr(:call, to, st.expr.args...)
   end
+  return ir
 end

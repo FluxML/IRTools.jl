@@ -1,6 +1,6 @@
 using IRTools, MacroTools, InteractiveUtils, Test
 using IRTools: @dynamo, IR, meta, isexpr, xcall, self, insertafter!, recurse!,
-  argument!, return!, func, var
+  argument!, return!, func, var, functional
 
 @dynamo roundtrip(a...) = IR(a...)
 
@@ -168,3 +168,13 @@ let
   f = test_lambda(3)
   @test f(6) == 9
 end
+
+anf(f::Core.IntrinsicFunction, args...) = f(args...)
+
+@dynamo function anf(args...)
+  ir = IR(args...)
+  ir == nothing && return
+  functional(recurse!(ir, anf))
+end
+
+@test anf(pow, 2, 3) == 8
