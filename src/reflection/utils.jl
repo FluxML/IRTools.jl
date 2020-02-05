@@ -102,6 +102,18 @@ function varargs!(meta, ir::IR, n = 0)
   return ir
 end
 
+function closureargs!(ir::IR)
+  args = arguments(ir)[2:end]
+  deletearg!(ir, 2:length(arguments(ir)))
+  argtuple = argument!(ir)
+  env = Dict()
+  for (i, a) in reverse(collect(enumerate(args)))
+    env[a] = pushfirst!(ir, xcall(:getindex, argtuple, i))
+  end
+  prewalk!(x -> get(env, x, x), ir)
+  return ir
+end
+
 # TODO this is hacky and leaves `ir.defs` incorrect
 function splicearg!(ir::IR)
   args = arguments(ir)
