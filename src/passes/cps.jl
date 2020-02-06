@@ -17,6 +17,13 @@ function return_thunk(x)
   Expr(:lambda, ir, x)
 end
 
+function br_thunk(args...)
+  ir = IR()
+  self = argument!(ir)
+  return!(ir, xcall([xcall(:getindex, self, i) for i = 1:length(args)]...))
+  Expr(:lambda, ir, args...)
+end
+
 function functionalbranches!(bl, pr, labels)
   if length(branches(bl)) == 1
     br = branches(bl)[1]
@@ -30,8 +37,8 @@ function functionalbranches!(bl, pr, labels)
     f, t = branches(bl)
     function brfunc(br)
       isreturn(br) && return return_thunk(returnvalue(br))
-      @assert isempty(arguments(br))
-      labels[br.block]
+      isempty(arguments(br)) && return labels[br.block]
+      br_thunk(labels[br.block], arguments(br)...)
     end
     r = push!(pr, xcall(IRTools, :cond, f.condition, brfunc(t), brfunc(f)))
     empty!(branches(pr.to))

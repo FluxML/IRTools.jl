@@ -902,7 +902,7 @@ end
 
 function Base.pushfirst!(p::Pipe, x)
   tmp = var!(p)
-  substitute!(p, tmp, pushfirst!(p.to, prewalk(substitute(p), x)))
+  substitute!(p, tmp, pushfirst!(p.to, substitute(p, x)))
   return tmp
 end
 

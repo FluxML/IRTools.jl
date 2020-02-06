@@ -37,7 +37,7 @@ end
 
 let exports = :[
       # IR
-      IR, Block, BasicBlock, Variable, Statement, Branch, Pipe, CFG, Slot, branch, var, stmt, arguments, argtypes,
+      IRTools, IR, Block, BasicBlock, Variable, Statement, Branch, Pipe, CFG, Slot, branch, var, stmt, arguments, argtypes,
       branches, undef, unreachable, isreturn, isconditional, block!, deleteblock!, branch!, argument!, return!,
       canbranch, returnvalue, returntype, emptyargs!, deletearg!, block, blocks, successors, predecessors,
       xcall, exprtype, exprline, isexpr, insertafter!, explicitbranch!, prewalk, postwalk,
@@ -47,7 +47,7 @@ let exports = :[
       merge_returns!, expand!, prune!, ssa!, inlineable!, log!, pis!, func, evalir,
       Simple, Loop, Multiple, reloop, stackify, functional, cond,
       # Reflection, Dynamo
-      Meta, TypedMeta, meta, typed_meta, dynamo, transform, refresh, recurse!, self,
+      Meta, TypedMeta, Lambda, meta, typed_meta, dynamo, transform, refresh, recurse!, self,
       varargs!, slots!,
       ].args
   append!(exports, Symbol.(["@code_ir", "@dynamo", "@meta", "@typed_meta"]))
