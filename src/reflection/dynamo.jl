@@ -41,6 +41,7 @@ function lambdalift!(ir, S, I = ())
     isexpr(st.expr, :lambda) || continue
     ir[v] = Expr(:call, Lambda{S,(I...,i+=1)}, st.expr.args[2:end]...)
   end
+  return ir
 end
 
 function getlambda(ir, I)
@@ -56,7 +57,7 @@ end
 # Used only for its CodeInfo
 dummy(args...) = nothing
 
-function dynamo(f, args...)
+function dynamo(cache, f, args...)
   try
     ir = transform(f, args...)::Union{IR,Expr,Nothing}
   catch e
@@ -64,7 +65,8 @@ function dynamo(f, args...)
   end
   ir isa Expr && return ir
   ir == nothing && return fallthrough(args...)
-  lambdalift!(ir, Tuple{f,args...}, ())
+  cache[args] = ir
+  ir = lambdalift!(copy(ir), Tuple{f,args...})
   if ir.meta isa Meta
     m = ir.meta
     ir = varargs!(m, ir)
@@ -79,10 +81,10 @@ function dynamo(f, args...)
   return update!(m.code, ir)
 end
 
-function dynamo_lambda(f::Type{<:Lambda{S,I}}, args...) where {S,I}
-  ir = transform(S.parameters...)
+function dynamo_lambda(cache, f::Type{<:Lambda{S,I}}) where {S,I}
+  ir = cache[(S.parameters[2:end]...,)]
   ir = getlambda(ir, I)
-  lambdalift!(ir, S, I)
+  ir = lambdalift!(copy(ir), S, I)
   closureargs!(ir)
   m = @meta dummy(1)
   m.code.method_for_inference_limit_heuristics = nothing
@@ -108,10 +110,11 @@ macro dynamo(ex)
     (length(name.args) == 1 ? (esc(gensym()), esc(name.args[1])) : esc.(name.args)) :
     (esc(gensym()), :(Core.Typeof($(esc(name)))))
   gendef = quote
+    local cache = Dict()
     @generated ($f::$T)($(esc(:args))...) where $(Ts...) =
-      return IRTools.dynamo($f, args...)
+      return IRTools.dynamo(cache, $f, args...)
     @generated (f::IRTools.Inner.Lambda{<:Tuple{<:$T,Vararg{Any}}})(args...) where $(Ts...) =
-      return IRTools.Inner.dynamo_lambda(f, args...)
+      return IRTools.Inner.dynamo_lambda(cache, f)
   end
   quote
     $(isexpr(name, :(::)) || esc(:(function $name end)))
