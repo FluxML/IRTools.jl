@@ -29,15 +29,8 @@ rename(env, x::Statement) = stmt(x, expr = rename(env, x.expr))
 
 excluded = [GlobalRef(Base, :getindex)]
 
-function continuation(ir, vs, cs, in, ret)
-  bl = empty(ir)
-  env = Dict()
+function continuation!(bl, ir, env, vs, ret)
   rename(x) = Main.rename(env, x)
-  self = argument!(bl)
-  env[in] = argument!(bl)
-  for (i, c) in enumerate(cs)
-    env[c] = pushfirst!(bl, xcall(:getindex, self, i))
-  end
   local v, st
   while true
     isempty(vs) && return return!(bl, rename(Expr(:call, ret, returnvalue(block(ir, 1)))))
@@ -49,10 +42,25 @@ function continuation(ir, vs, cs, in, ret)
     env[v] = push!(bl, rename(st))
   end
   cs = [ret, setdiff(captures(ir, vs), [v])...]
-  next = push!(bl, Expr(:lambda, continuation(ir, vs, cs, v, ret), rename.(cs)...))
-  next = xcall(Main, :Func, next)
+  if isempty(vs)
+    next = rename(ret)
+  else
+    next = push!(bl, Expr(:lambda, continuation(ir, vs, cs, v, ret), rename.(cs)...))
+    next = xcall(Main, :Func, next)
+  end
   ret = push!(bl, stmt(st, expr = xcall(Main, :cps, next, rename(st.expr).args...)))
   return!(bl, ret)
+end
+
+function continuation(ir, vs, cs, in, ret)
+  bl = empty(ir)
+  env = Dict()
+  self = argument!(bl)
+  env[in] = argument!(bl)
+  for (i, c) in enumerate(cs)
+    env[c] = pushfirst!(bl, xcall(:getindex, self, i))
+  end
+  continuation!(bl, ir, env, vs, ret)
 end
 
 cpslambda(ir) = cpstransform(ir, true)
@@ -65,10 +73,7 @@ function cpstransform(ir, lambda = false)
   for arg in arguments(ir)
     env[arg] = argument!(bl)
   end
-  cs = arguments(ir)
-  cont = push!(bl, Expr(:lambda, continuation(ir, keys(ir), cs, nothing, k), rename.((env,), cs)...))
-  return!(bl, Expr(:call, cont, nothing))
-  return bl
+  continuation!(bl, ir, env, keys(ir), k)
 end
 
 cps(k, f::Core.IntrinsicFunction, args...) = k(f(args...))
