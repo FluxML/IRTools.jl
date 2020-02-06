@@ -246,6 +246,10 @@ end
 
 BasicBlock(b::Block) = b.ir.blocks[b.id]
 branches(b::Block) = branches(BasicBlock(b))
+
+branches(ir::IR) = length(blocks(ir)) == 1 ? branches(block(ir, 1)) :
+  error("IR has multiple blocks, so `branches(ir)` is ambiguous.")
+
 arguments(b::Block) = arguments(BasicBlock(b))
 arguments(ir::IR) = arguments(block(ir, 1))
 
@@ -843,6 +847,8 @@ var!(p::Pipe) = NewVariable(p.var += 1)
 substitute!(p::Pipe, x, y) = (p.map[x] = y; x)
 substitute(p::Pipe, x::Union{Variable,NewVariable}) = p.map[x]
 substitute(p::Pipe, x) = get(p.map, x, x)
+substitute(p::Pipe, x::Statement) = stmt(x, expr = substitute(p, x.expr))
+substitute(p::Pipe, x::Expr) = Expr(x.head, substitute.((p,), x.args)...)
 substitute(p::Pipe) = x -> substitute(p, x)
 
 function Pipe(ir)
@@ -876,7 +882,7 @@ function iterate(p::Pipe, (ks, b, i) = (pipestate(p.from), 1, 1))
   end
   v = ks[b][i]
   st = p.from[v]
-  substitute!(p, v, push!(p.to, prewalk(substitute(p), st)))
+  substitute!(p, v, push!(p.to, substitute(p, st)))
   ((v, st), (ks, b, i+1))
 end
 
@@ -890,13 +896,13 @@ setindex!(p::Pipe, x, v) = p.to[substitute(p, v)] = prewalk(substitute(p), x)
 
 function Base.push!(p::Pipe, x)
   tmp = var!(p)
-  substitute!(p, tmp, push!(p.to, prewalk(substitute(p), x)))
+  substitute!(p, tmp, push!(p.to, substitute(p, x)))
   return tmp
 end
 
 function Base.pushfirst!(p::Pipe, x)
   tmp = var!(p)
-  substitute!(p, tmp, pushfirst!(p.to, prewalk(substitute(p), x)))
+  substitute!(p, tmp, pushfirst!(p.to, substitute(p, x)))
   return tmp
 end
 
@@ -913,7 +919,7 @@ end
 
 function insert!(p::Pipe, v, x; after = false)
   v′ = substitute(p, v)
-  x = prewalk(substitute(p), x)
+  x = substitute(p, x)
   tmp = var!(p)
   if islastdef(p.to, v′) # we can make this case efficient by renumbering
     if after
@@ -933,7 +939,7 @@ argument!(p::Pipe, a...; kw...) =
   substitute!(p, var!(p), argument!(p.to, a...; kw...))
 
 function branch!(ir::Pipe, b, args...; kw...)
-  args = map(a -> postwalk(substitute(ir), a), args)
+  args = map(a -> substitute(ir, a), args)
   branch!(blocks(ir.to)[end], b, args...; kw...)
   return ir
 end

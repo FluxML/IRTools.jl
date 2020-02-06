@@ -1,6 +1,6 @@
 using IRTools, MacroTools, InteractiveUtils, Test
 using IRTools: @dynamo, IR, meta, isexpr, xcall, self, insertafter!, recurse!,
-  argument!, return!, func, var
+  argument!, return!, func, var, functional
 
 @dynamo roundtrip(a...) = IR(a...)
 
@@ -151,3 +151,30 @@ mul = func(ir)
 end
 
 @test ir_add(5, 2) == 7
+
+@dynamo function test_lambda(x)
+  λ = IR()
+  self = argument!(λ)
+  y = argument!(λ)
+  x = push!(λ, xcall(:getindex, self, 1))
+  return!(λ, xcall(:+, x, y))
+  ir = IR()
+  args = argument!(ir)
+  x = push!(ir, xcall(:getindex, args, 1))
+  return!(ir, Expr(:lambda, λ, x))
+end
+
+let
+  f = test_lambda(3)
+  @test f(6) == 9
+end
+
+anf(f::Core.IntrinsicFunction, args...) = f(args...)
+
+@dynamo function anf(args...)
+  ir = IR(args...)
+  ir == nothing && return
+  functional(recurse!(ir, anf))
+end
+
+@test anf(pow, 2, 3) == 8

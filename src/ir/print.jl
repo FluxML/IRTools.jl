@@ -1,7 +1,10 @@
 import Base: show
 
 # TODO: real expression printing
-Base.show(io::IO, x::Variable) = print(io, "%", x.id)
+function Base.show(io::IO, x::Variable)
+  bs = get(io, :bindings, Dict())
+  haskey(bs, x) ? print(io, bs[x]) : print(io, "%", x.id)
+end
 
 const printers = Dict{Symbol,Any}()
 
@@ -13,12 +16,12 @@ function show(io::IO, b::Branch)
   if b == unreachable
     print(io, "unreachable")
   elseif isreturn(b)
-    print(io, "return $(repr(b.args[1]))")
+    print(io, "return ", b.args[1])
   else
     print(io, "br $(b.block)")
     if !isempty(b.args)
       print(io, " (")
-      join(io, repr.(b.args), ", ")
+      join(io, b.args, ", ")
       print(io, ")")
     end
     b.condition != nothing && print(io, " unless $(b.condition)")
@@ -39,6 +42,7 @@ end
 
 function show(io::IO, b::Block)
   indent = get(io, :indent, 0)
+  bs = get(io, :bindings, Dict())
   bb = BasicBlock(b)
   print(io, tab^indent)
   print(io, b.id, ":")
@@ -47,6 +51,7 @@ function show(io::IO, b::Block)
     printargs(io, bb.args, bb.argtypes)
   end
   for (x, st) in b
+    haskey(bs, x) && continue
     println(io)
     print(io, tab^indent, "  ")
     x == nothing || print(io, string("%", x.id), " = ")
@@ -87,11 +92,37 @@ printers[:catch] = function (io, ex)
   args = ex.args[2:end]
   if !isempty(args)
     print(io, " (")
-    join(io, repr.(args), ", ")
+    join(io, args, ", ")
     print(io, ")")
   end
 end
 
 printers[:pop_exception] = function (io, ex)
   print(io, "pop exception $(ex.args[1])")
+end
+
+function lambdacx(io, ex)
+  bs = get(io, :bindings, Dict())
+  ir = ex.args[1]
+  args = ex.args[2:end]
+  bs′ = Dict()
+  for (v, st) in ir
+    ex = st.expr
+    if iscall(ex, GlobalRef(Base, :getindex)) &&
+        ex.args[2] == arguments(ir)[1] &&
+        ex.args[3] isa Integer
+      x = args[ex.args[3]]
+      bs′[v] = string(get(bs, x, x), "'")
+    end
+  end
+  return bs′
+end
+
+printers[:lambda] = function (io, ex)
+  print(io, "λ :")
+  # printargs(io, ex.args[2:end])
+  io = IOContext(io, :indent   => get(io, :indent, 0)+2,
+                     :bindings => lambdacx(io, ex))
+  println(io)
+  print(io, ex.args[1])
 end
