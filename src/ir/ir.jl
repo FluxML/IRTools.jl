@@ -892,7 +892,7 @@ islastdef(ir::IR, v::Variable) =
   v.id == length(ir.defs) &&
   ir.defs[v.id] == (length(ir.blocks), length(ir.blocks[end].stmts))
 
-setindex!(p::Pipe, x, v) = p.to[substitute(p, v)] = prewalk(substitute(p), x)
+setindex!(p::Pipe, x, v) = p.to[substitute(p, v)] = substitute(p, x)
 
 function Base.push!(p::Pipe, x)
   tmp = var!(p)
