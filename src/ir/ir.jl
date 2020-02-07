@@ -840,6 +840,7 @@ mutable struct Pipe
   to::IR
   map::Dict{Any,Any}
   var::Int
+  branch
 end
 
 var!(p::Pipe) = NewVariable(p.var += 1)
@@ -852,7 +853,7 @@ substitute(p::Pipe, x::Expr) = Expr(x.head, substitute.((p,), x.args)...)
 substitute(p::Pipe) = x -> substitute(p, x)
 
 function Pipe(ir)
-  p = Pipe(ir, IR(copy(ir.lines), meta = ir.meta), Dict(), 0)
+  p = Pipe(ir, IR(copy(ir.lines), meta = ir.meta), Dict(), 0, identity)
   for (x, T) in zip(p.from.blocks[1].args, p.from.blocks[1].argtypes)
     y = argument!(blocks(p.to)[end], nothing, T, insert = false)
     substitute!(p, x, y)
@@ -865,6 +866,8 @@ function pipestate(ir::IR)
   [first.(filter(x -> x[2][1] == b, ks)) for b = 1:length(ir.blocks)]
 end
 
+branches(f, p::Pipe) = (p.branch = f)
+
 function iterate(p::Pipe, (ks, b, i) = (pipestate(p.from), 1, 1))
   if i == 1 && b != 1
     for (x, T) in zip(p.from.blocks[b].args, p.from.blocks[b].argtypes)
@@ -874,7 +877,7 @@ function iterate(p::Pipe, (ks, b, i) = (pipestate(p.from), 1, 1))
   end
   if i > length(ks[b])
     for br in branches(block(p.from, b))
-      push!(p.to.blocks[end].branches, map(substitute(p), br))
+      push!(p.to.blocks[end].branches, map(substitute(p), p.branch(br)))
     end
     b == length(ks) && return
     block!(p.to)
