@@ -11,6 +11,7 @@ module Inner
   export @code_ir
 
   include("reflection/reflection.jl")
+  include("utils.jl")
 
   include("ir/ir.jl")
   include("ir/utils.jl")
@@ -25,6 +26,7 @@ module Inner
   include("passes/cps.jl")
   include("passes/relooper.jl")
   include("passes/stackifier.jl")
+  include("passes/registers.jl")
 
   include("interpret.jl")
   include("eval.jl")
@@ -45,7 +47,7 @@ let exports = :[
       # Passes/Analysis
       definitions, usages, dominators, domtree, domorder, domorder!, renumber,
       merge_returns!, expand!, prune!, ssa!, inlineable!, log!, pis!, func, evalir,
-      Simple, Loop, Multiple, reloop, stackify, functional, cond,
+      Simple, Loop, Multiple, reloop, stackify, functional, cond, WorkQueue,
       # Reflection, Dynamo
       Meta, TypedMeta, Lambda, meta, typed_meta, dynamo, transform, refresh, recurse!, self,
       varargs!, slots!,
