@@ -1,3 +1,8 @@
+# A simple reverse-mode AD.
+# Lots of simplifications have been made (in particular, there is no support for
+# control flow). But this illustrates most of the principles behind Zygote.
+# https://fluxml.ai/Zygote.jl/dev/internals/
+
 using IRTools
 using IRTools: @dynamo, IR, Pipe, finish, substitute, return!, block, blocks,
   returnvalue, arguments, isexpr, xcall, self, stmt

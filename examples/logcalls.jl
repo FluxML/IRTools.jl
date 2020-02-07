@@ -1,3 +1,5 @@
+# A simple dynamo that logs all function calls being made by Julia.
+
 using IRTools: @dynamo, IR, xcall, arguments, insertafter!, recurse!
 
 function hook(f, args...)
