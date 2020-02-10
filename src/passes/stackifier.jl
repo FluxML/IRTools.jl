@@ -66,11 +66,12 @@ function branchesto(cfg::CFG, cs, i)
 end
 
 function stackify(cfg::CFG, cs::Component = components(cfg), forw = [], back = [])
+  entry = cs.children[1]
   for (i, c) = enumerate(cs.children)
     target = minimum(entries(c))
     f, b = branchesto(cfg, cs, i)
-    f == nothing || push!(forw, f=>target)
-    b == nothing || push!(back, b=>target)
+    f == nothing || push!(forw, entry=>target)
+    b == nothing || push!(back, b    =>target)
     c isa Component && stackify(cfg, c, forw, back)
   end
   return forw, back
