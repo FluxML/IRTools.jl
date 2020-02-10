@@ -24,3 +24,29 @@ function liveness(ir)
   end
   return result
 end
+
+function interference(liveness)
+  g = Graph{Variable}()
+  for set in liveness
+    set = collect(set)
+    for i = 1:length(set), j = i+1:length(set)
+      connect!(g, set[i], set[j])
+    end
+  end
+  return g
+end
+
+interference(ir::IR) = interference(values(liveness(ir)))
+
+function colouring(g::Graph, pre = Dict())
+  nodes = sort(collect(keys(g)), by = x -> length(g[x]), rev = true)
+  colours = Dict(n => get(pre, n, -1) for n in nodes)
+  for n in nodes
+    colour = 1
+    while any(m -> colours[m] == colour, g[n])
+      colour += 1
+    end
+    colours[n] = colour
+  end
+  return colours
+end

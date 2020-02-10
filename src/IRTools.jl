@@ -48,6 +48,7 @@ let exports = :[
       definitions, usages, dominators, domtree, domorder, domorder!, renumber,
       merge_returns!, expand!, prune!, ssa!, inlineable!, log!, pis!, func, evalir,
       Simple, Loop, Multiple, reloop, stackify, functional, cond, WorkQueue,
+      Graph, liveness, interference, colouring,
       # Reflection, Dynamo
       Meta, TypedMeta, Lambda, meta, typed_meta, dynamo, transform, refresh, recurse!, self,
       varargs!, slots!,
