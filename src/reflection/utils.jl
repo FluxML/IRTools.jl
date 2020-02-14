@@ -133,4 +133,12 @@ function update!(ci::CodeInfo, ir::Core.Compiler.IRCode)
   return ci
 end
 
-update!(meta, ir::IR) = update!(meta, Core.Compiler.IRCode(slots!(ir)))
+function update!(ci::CodeInfo, ir::IR)
+  if ir.meta isa Meta
+    ci.method_for_inference_limit_heuristics = ir.meta.method
+    if isdefined(ci, :edges)
+      ci.edges = Core.MethodInstance[ir.meta.instance]
+    end
+  end
+  update!(ci, Core.Compiler.IRCode(slots!(ir)))
+end

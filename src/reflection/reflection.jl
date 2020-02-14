@@ -1,5 +1,5 @@
 using Core: CodeInfo, Typeof
-using Core.Compiler: InferenceState, widenconst, svec
+using Core.Compiler: InferenceState, MethodInstance, widenconst, svec
 using InteractiveUtils: typesof
 
 worldcounter() = ccall(:jl_get_world_counter, UInt, ())
@@ -63,7 +63,6 @@ function typed_meta(T; world = worldcounter(), optimize = false)
   frame = Core.Compiler.typeinf_code2(method, type_signature, sps, optimize, params)
   ci = frame.src
   ci.inferred = true
-  ci.method_for_inference_limit_heuristics = method
   if ci.ssavaluetypes == 0 # constant return; IRCode doesn't like this
     ci.ssavaluetypes = Any[Any]
   end
@@ -72,6 +71,7 @@ end
 
 struct Meta
   method::Method
+  instance::MethodInstance
   code::CodeInfo
   nargs::Int
   sparams
@@ -114,12 +114,8 @@ function meta(T; world = worldcounter())
     mi = Core.Compiler.code_for_method(method, type_signature, sps, world, false)
     ci = Base.isgenerated(mi) ? Core.Compiler.get_staged(mi) : Base.uncompressed_ast(mi)
   end
-  ci.method_for_inference_limit_heuristics = method
-  if isdefined(ci, :edges)
-    ci.edges = Core.MethodInstance[mi]
-  end
   Base.Meta.partially_inline!(ci.code, [], method.sig, Any[sps...], 0, 0, :propagate)
-  Meta(method, ci, method.nargs, sps)
+  Meta(method, mi, ci, method.nargs, sps)
 end
 
 function invoke_tweaks!(ci::CodeInfo)
