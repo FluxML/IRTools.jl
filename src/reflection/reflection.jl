@@ -134,7 +134,7 @@ function invoke_meta(T; world)
   T = Tuple{F,A.parameters[1].parameters...}
   m = meta(T, world = world)
   invoke_tweaks!(m.code)
-  return Meta(m.method, m.code, m.nargs+2, m.sparams)
+  return Meta(m.method, m.instance, m.code, m.nargs+2, m.sparams)
 end
 
 """
