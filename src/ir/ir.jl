@@ -898,11 +898,12 @@ islastdef(ir::IR, v::Variable) =
 setindex!(p::Pipe, x, v) = p.to[substitute(p, v)] = substitute(p, x)
 
 function setindex!(p::Pipe, x::Variable, v)
-  if islastdef(p.to, v)
+  v′ = substitute(p, v)
+  if islastdef(p.to, v′)
     delete!(p, v)
     substitute!(p, v, substitute(p, x))
   else
-    p.to[substitute(p, v)] = substitute(p, x)
+    p.to[v′] = substitute(p, x)
   end
 end
 
