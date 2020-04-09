@@ -897,6 +897,15 @@ islastdef(ir::IR, v::Variable) =
 
 setindex!(p::Pipe, x, v) = p.to[substitute(p, v)] = substitute(p, x)
 
+function setindex!(p::Pipe, x::Variable, v)
+  if islastdef(p.to, v)
+    delete!(p, v)
+    substitute!(p, v, substitute(p, x))
+  else
+    p.to[substitute(p, v)] = substitute(p, x)
+  end
+end
+
 function Base.push!(p::Pipe, x)
   tmp = var!(p)
   substitute!(p, tmp, push!(p.to, substitute(p, x)))
