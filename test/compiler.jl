@@ -14,6 +14,7 @@ end
 add(a, b) = a+b
 @test roundtrip(add, 2, 3) == 5
 @test passthrough(add, 2, 3) == 5
+@test passthrough(sin, 1.0) == sin(1.0)
 
 @test @code_ir(passthrough, add(2, 3)) isa IR
 

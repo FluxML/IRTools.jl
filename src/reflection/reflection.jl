@@ -97,7 +97,7 @@ See also [`@meta`](@ref), [`typed_meta`](@ref).
     julia> IRTools.meta(Tuple{typeof(gcd),Int,Int})
     Metadata for gcd(a::T, b::T) where T<:Union{Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8} in Base at intfuncs.jl:31
 """
-function meta(T; world = worldcounter())
+function meta(T; types = T, world = worldcounter())
   F = T.parameters[1]
   F == typeof(invoke) && return invoke_meta(T; world = world)
   F isa DataType && (F.name.module === Core.Compiler ||
@@ -108,10 +108,10 @@ function meta(T; world = worldcounter())
   type_signature, sps, method = last(_methods)
   sps = svec(map(untvar, sps)...)
   @static if VERSION >= v"1.2-"
-    mi = Core.Compiler.specialize_method(method, type_signature, sps)
+    mi = Core.Compiler.specialize_method(method, types, sps)
     ci = Base.isgenerated(mi) ? Core.Compiler.get_staged(mi) : Base.uncompressed_ast(method)
   else
-    mi = Core.Compiler.code_for_method(method, type_signature, sps, world, false)
+    mi = Core.Compiler.code_for_method(method, types, sps, world, false)
     ci = Base.isgenerated(mi) ? Core.Compiler.get_staged(mi) : Base.uncompressed_ast(mi)
   end
   Base.Meta.partially_inline!(ci.code, [], method.sig, Any[sps...], 0, 0, :propagate)
@@ -131,8 +131,10 @@ end
 function invoke_meta(T; world)
   F = T.parameters[2]
   A = T.parameters[3]::Type{<:Type{<:Tuple}}
+  S = T.parameters[4:end]
   T = Tuple{F,A.parameters[1].parameters...}
-  m = meta(T, world = world)
+  S = Tuple{F,S...}
+  m = meta(T, types = S, world = world)
   invoke_tweaks!(m.code)
   return Meta(m.method, m.instance, m.code, m.nargs+2, m.sparams)
 end
