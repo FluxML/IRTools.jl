@@ -3,7 +3,7 @@ module Wrap
 using MacroTools: isexpr, prewalk
 import Core: SSAValue, GotoNode
 import Core.Compiler: CodeInfo, IRCode, CFG, ReturnNode,
-  just_construct_ssa, compact!, OptimizationState, GotoIfNot, PhiNode, StmtRange
+  compact!, OptimizationState, GotoIfNot, PhiNode, StmtRange
 
 PhiNode(x, y) = PhiNode(Any[x...], Any[y...])
 
@@ -25,15 +25,6 @@ vars(ex) = prewalk(x -> x isa SSAValue ? Variable(x.id) : x, ex)
 Branch(x::GotoNode) = Branch(nothing, x.label, [])
 Branch(x::GotoIfNot) = Branch(vars(x.cond), x.dest, [])
 Branch(x::ReturnNode) = isdefined(x, :val) ? Branch(nothing, 0, [vars(x.val)]) : unreachable
-
-function IRCode(meta::TypedMeta)
-  opt = OptimizationState(meta.frame)
-  Base.Meta.partially_inline!(meta.code.code, [], meta.method.sig, sparams(opt), 0, 0, :propagate)
-  ir = just_construct_ssa(meta.code, copy(meta.code.code),
-                          Int(meta.method.nargs)-1, opt)
-  resize!(ir.argtypes, meta.method.nargs)
-  return compact!(ir)
-end
 
 function branches_for!(ir, (from, to))
   brs = []
