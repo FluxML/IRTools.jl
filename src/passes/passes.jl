@@ -162,6 +162,16 @@ end
 function prune!(ir::IR)
   usages = usecounts(ir)
   worklist = blocks(ir)
+  queue!(b) = (b in worklist || push!(worklist, b))
+  function rename!(env, ir)
+    for b in blocks(ir)
+      prewalk!(b) do x
+        haskey(env, x) || return x
+        foreach(queue!, successors(b))
+        env[x]
+      end
+    end
+  end
   while !isempty(worklist)
     b = popfirst!(worklist)
     isempty(arguments(b)) && continue
@@ -172,11 +182,8 @@ function prune!(ir::IR)
     del = findall(x -> length(x) == 1, inputs)
     rename = Dict(zip(arguments(b)[del], first.(inputs[del])))
     if !isempty(rename)
-      prewalk!(x -> get(rename, x, x), ir)
       deletearg!(b, del)
-      for c in successors(b)
-        c in worklist || push!(worklist, c)
-      end
+      rename!(rename, ir)
     end
     # Redundant due to not being used
     unused = findall(x -> get(usages, x, 0) == 0, arguments(b))
