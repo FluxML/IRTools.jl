@@ -1,6 +1,6 @@
 import Base: map, map!
 import Core.Compiler: PhiNode, PiNode, ssamap, userefs
-import MacroTools: walk
+import MacroTools: walk, prewalk, postwalk
 
 walk(x::PhiNode, inner, outer) =
   outer(PhiNode(x.edges,
@@ -49,8 +49,12 @@ walk(b::Block, inner, outer) = walk(BasicBlock(b), inner, outer)
 
 walk(ir::IR, inner, outer) = outer(map(inner, ir))
 
-prewalk!(f, ir::Union{IR,Block}) = map!(x -> prewalk(f, x), ir)
-postwalk!(f, ir::Union{IR,Block}) = map!(x -> postwalk(f, x), ir)
+# Avoid recursing into lambdas
+prewalk(f, ir::Union{IR,Block})  = walk(f(ir), x -> x isa IR ? x : prewalk(f, x), identity)
+postwalk(f, ir::Union{IR,Block}) = walk(x, x -> x isa IR ? x : postwalk(f, x), f)
+
+prewalk!(f, ir::Union{IR,Block})  = map!(x -> x isa IR ? x :  prewalk(f, x), ir)
+postwalk!(f, ir::Union{IR,Block}) = map!(x -> x isa IR ? x : postwalk(f, x), ir)
 
 varmap(f, x) = prewalk(x -> x isa Variable ? f(x) : x, x)
 
