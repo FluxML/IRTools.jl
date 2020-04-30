@@ -424,6 +424,10 @@ function deletearg!(b::Block, i::Integer)
     br.block == b.id && deleteat!(arguments(br), i)
   end
   b.ir.defs[arg.id] = (-1, -1)
+  for arg in arguments(b)[i:end]
+    (bl, pos) = b.ir.defs[arg.id]
+    b.ir.defs[arg.id] = (bl, pos+1)
+  end
   return
 end
 
