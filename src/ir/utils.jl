@@ -51,7 +51,7 @@ walk(ir::IR, inner, outer) = outer(map(inner, ir))
 
 # Avoid recursing into lambdas
 prewalk(f, ir::Union{IR,Block})  = walk(f(ir), x -> x isa IR ? x : prewalk(f, x), identity)
-postwalk(f, ir::Union{IR,Block}) = walk(x, x -> x isa IR ? x : postwalk(f, x), f)
+postwalk(f, ir::Union{IR,Block}) = walk(ir, x -> x isa IR ? x : postwalk(f, x), f)
 
 prewalk!(f, ir::Union{IR,Block})  = map!(x -> x isa IR ? x :  prewalk(f, x), ir)
 postwalk!(f, ir::Union{IR,Block}) = map!(x -> x isa IR ? x : postwalk(f, x), ir)
