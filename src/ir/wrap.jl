@@ -162,9 +162,13 @@ function IR(ci::CodeInfo, nargs::Integer; meta = nothing)
   bs = blockstarts(ci)
   ir = IR(Core.LineInfoNode[ci.linetable...], meta = meta)
   _rename = Dict()
-  rename(ex) = prewalk(ex) do x
-    haskey(_rename, x) && return _rename[x]
-    x isa Core.SlotNumber && return Inner.Slot(slotname(ci, x))
+  rename!(x) = haskey(_rename, x) ? _rename[x] : x
+  rename!(x::Core.SSAValue) = _rename[x]
+  rename!(x::Core.SlotNumber) = haskey(_rename, x) ? _rename[x] : Inner.Slot(slotname(ci, x))
+  function rename!(x::Expr)
+    for i = 1:length(x.args)
+      x.args[i] = rename!(x.args[i])
+    end
     return x
   end
   for i = 1:nargs
@@ -181,11 +185,11 @@ function IR(ci::CodeInfo, nargs::Integer; meta = nothing)
       branch!(ir, findfirst(==(ex.label), bs)+1)
     elseif isexpr(ex, :gotoifnot)
       branch!(ir, findfirst(==(ex.args[2]), bs)+1,
-              unless = rename(ex.args[1]))
+              unless = rename!(ex.args[1]))
     elseif isexpr(ex, :return)
-      return!(ir, rename(ex.args[1]))
+      return!(ir, rename!(ex.args[1]))
     else
-      _rename[Core.SSAValue(i)] = push!(ir, IRTools.stmt(rename(ex), line = ci.codelocs[i]))
+      _rename[Core.SSAValue(i)] = push!(ir, IRTools.stmt(rename!(ex), line = ci.codelocs[i]))
     end
   end
   return ir

@@ -240,11 +240,14 @@ function ssa!(ir::IR)
   end
   for b in blocks(ir)
     current = b.id
-    rename(ex) = prewalk(x -> x isa Slot ? reaching(b, x) : x, ex)
+    rename!(x) = x
+    rename!(x::Slot) = reaching(b, x)
+    rename!(x::Branch) = (map!(rename!, x.args, x.args); x)
+    rename!(x::Expr) = (map!(rename!, x.args, x.args); x)
     for (v, st) in b
       ex = st.expr
       if isexpr(ex, :(=)) && ex.args[1] isa Slot
-        defs[b.id][ex.args[1]] = rename(ex.args[2])
+        defs[b.id][ex.args[1]] = rename!(ex.args[2])
         catchbranch!(v, ex.args[1])
         delete!(ir, v)
       elseif isexpr(ex, :enter)
@@ -254,11 +257,11 @@ function ssa!(ir::IR)
       elseif isexpr(ex, :leave) && !haskey(catches, current)
         pop!(handlers)
       else
-        ir[v] = rename(ex)
+        ir[v] = rename!(ex)
       end
     end
     for i = 1:length(BasicBlock(b).branches)
-      BasicBlock(b).branches[i] = rename(BasicBlock(b).branches[i])
+      BasicBlock(b).branches[i] = rename!(BasicBlock(b).branches[i])
     end
     for (succ, ss) in todo[b.id], br in branches(b, succ)
       append!(br.args, [reaching(b, v) for v in ss])
