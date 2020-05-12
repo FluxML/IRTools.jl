@@ -10,6 +10,8 @@ module Inner
 
   export @code_ir
 
+  @nospecialize
+
   include("reflection/reflection.jl")
   include("utils.jl")
 
