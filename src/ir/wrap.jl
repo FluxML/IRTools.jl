@@ -1,92 +1,12 @@
 module Wrap
 
 using MacroTools: isexpr, prewalk
-import Core: SSAValue, GotoNode
-import Core.Compiler: CodeInfo, IRCode, CFG, ReturnNode,
-  just_construct_ssa, compact!, OptimizationState, GotoIfNot, PhiNode, StmtRange
-
-PhiNode(x, y) = PhiNode(Any[x...], Any[y...])
-
-function Base.getindex(phi::PhiNode, b)
-  j = findfirst(c -> c == b, phi.edges)
-  return phi.values[j]
-end
-
-# SSA contruction (forked from Base for untyped code)
-
-sparams(opt::OptimizationState) = VERSION > v"1.2-" ? Any[t.val for t in opt.sptypes] : Any[opt.sp...]
 
 using ..Inner, ..IRTools
-import ..Inner: IR, Variable, Statement, Branch, BasicBlock, TypedMeta, Meta, block!,
+import ..Inner: IR, Variable, Statement, Branch, BasicBlock, Meta, block!,
   unreachable, varmap, argument!, branch!, return!
-
-vars(ex) = prewalk(x -> x isa SSAValue ? Variable(x.id) : x, ex)
-
-Branch(x::GotoNode) = Branch(nothing, x.label, [])
-Branch(x::GotoIfNot) = Branch(vars(x.cond), x.dest, [])
-Branch(x::ReturnNode) = isdefined(x, :val) ? Branch(nothing, 0, [vars(x.val)]) : unreachable
-
-function IRCode(meta::TypedMeta)
-  opt = OptimizationState(meta.frame)
-  Base.Meta.partially_inline!(meta.code.code, [], meta.method.sig, sparams(opt), 0, 0, :propagate)
-  ir = just_construct_ssa(meta.code, copy(meta.code.code),
-                          Int(meta.method.nargs)-1, opt)
-  resize!(ir.argtypes, meta.method.nargs)
-  return compact!(ir)
-end
-
-function branches_for!(ir, (from, to))
-  brs = []
-  for br in ir.blocks[from].branches
-    br.block == to && push!(brs, br)
-  end
-  if isempty(brs)
-    br = Branch(nothing, to, [])
-    push!(ir.blocks[from].branches, br)
-    push!(brs, br)
-  end
-  return brs
-end
-
-function rewrite_phis!(ir::IR, offset)
-  for (v, st) in ir
-    ex = st.expr
-    ex isa PhiNode || continue
-    to, = IRTools.Inner.blockidx(ir, v)
-    bb = BasicBlock(to)
-    push!(bb.args, v)
-    push!(bb.argtypes, st.type)
-    for (from, arg) in zip(ex.edges, ex.values), br in branches_for!(ir, from+offset=>to.id)
-      push!(br.args, ex[from])
-    end
-    delete!(ir, v)
-    ir.defs[v.id] = (to.id, -length(bb.args))
-  end
-  return ir
-end
-
-function IR(ir::IRCode)
-  isempty(ir.new_nodes) || error("IRCode must be compacted")
-  ir2 = IR(ir.linetable)
-  defs = Dict()
-  args = map(T -> argument!(ir2, T), ir.argtypes)
-  offset = !isempty(ir.cfg.blocks[1].preds)
-  offset && block!(ir2)
-  for i = 1:length(ir.stmts)
-    findfirst(==(i), ir.cfg.index) == nothing || block!(ir2)
-    if ir.stmts[i] isa Union{GotoIfNot,GotoNode,ReturnNode}
-      push!(ir2.blocks[end].branches, Branch(ir.stmts[i]))
-    else
-      x = push!(ir2, Statement(vars(ir.stmts[i]), ir.types[i], ir.lines[i]))
-      defs[Variable(i)] = x
-    end
-  end
-  ir2 = prewalk(x -> x isa Variable ? defs[x] :
-                     x isa Core.Compiler.Argument ? Variable(x.n) :
-                     x, ir2)
-  rewrite_phis!(ir2, offset)
-  return ir2 |> IRTools.renumber
-end
+import Core: CodeInfo, GotoNode, SSAValue
+import Core.Compiler: IRCode, CFG, GotoIfNot, ReturnNode, StmtRange
 
 unvars(ex) = prewalk(x -> x isa Variable ? SSAValue(x.id) : x, ex)
 
@@ -191,18 +111,14 @@ function IR(ci::CodeInfo, nargs::Integer; meta = nothing)
   return ir
 end
 
-function IR(meta::Union{Meta,TypedMeta}; slots = false, prune = true)
-  if slots
-    return IR(meta.code, meta.method.nargs, meta = meta)
-  elseif meta isa Meta # TODO check this works for meta
-    ir = IR(meta.code, meta.nargs, meta = meta) |> IRTools.ssa!
-    if prune
-      ir = ir |> IRTools.prune! |> IRTools.renumber
-    end
-    return ir
-  else
-    return IR(IRCode(meta))
+function IR(meta::Meta; slots = false, prune = true)
+  ir = IR(meta.code, meta.nargs, meta = meta)
+  slots && return ir
+  ir = IRTools.ssa!(ir)
+  if prune
+    ir = ir |> IRTools.prune! |> IRTools.renumber
   end
+  return ir
 end
 
 function IR(Ts::Type...; slots = false, prune = true)
