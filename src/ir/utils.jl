@@ -80,29 +80,3 @@ function exprline(ir::IR, x::Variable)
   i > 0 || return
   get(ir.lines, ir[x].line, nothing)
 end
-
-function dependencies(ir::IR, x::IRTools.Variable)
-  var_stack = Variable[x]
-  path = Variable[]
-  args = IRTools.arguments(ir)
-  while !isempty(var_stack)
-      curr_var = pop!(var_stack)
-      if curr_var in args
-          continue
-      end
-
-      stmt = ir[curr_var]
-      if (stmt.expr isa Expr) && (stmt.expr.head == :call)
-          for arg in  stmt.expr.args
-              if arg isa Variable
-                  # skip nodes we visited
-                  if !(arg in path)
-                      push!(var_stack, arg)
-                      push!(path, arg)
-                  end
-              end
-          end
-      end        
-  end
-  return path
-end

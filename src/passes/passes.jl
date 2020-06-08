@@ -41,6 +41,71 @@ function usages(b::Block)
   return uses
 end
 
+usages(st::Statement) = usages(st.expr)
+function usages(ex::Expr)
+  uses = Set{Variable}()
+  prewalk(ex) do x
+    x isa Variable && push!(uses, x)
+    return x
+  end
+  return uses
+end
+
+"""
+  dependencies(ir::IR)
+
+Return the list of direct dependencies for each variable.
+"""
+function dependencies(ir::IR)
+  worklist = [block(ir, 1)]
+  deps = Dict()
+  while !isempty(worklist)
+    b = pop!(worklist)
+    for (v, st) in b
+      set = get!(deps, v, Set{Variable}())
+      union!(set, usages(st))
+    end
+
+    brs = BasicBlock(b).branches
+    jump_next_block = true
+    for br in brs
+      jump_next_block = jump_next_block && (br.condition !== nothing)
+      if br.block > 0
+        next_block = block(ir, br.block)
+        push!(worklist, next_block)
+        if !isempty(br.args)
+          for (x, y) in zip(arguments(next_block), br.args)
+            set = get!(deps, x, Set{Variable}())
+            push!(set, y)
+          end
+        end
+      end
+    end
+    jump_next_block && push!(worklist, block(ir, b.block+1))
+  end
+  return deps
+end
+
+function _find_dependency_path(deps::Dict, x::Variable)
+  path = Set{Variable}()
+  stack = Variable[x]
+  while !isempty(stack)
+    curr = pop!(stack)
+    if haskey(deps, curr)
+      for v in deps[curr]
+        push!(path, v)
+        push!(stack, v)
+      end
+    end
+  end
+  return path
+end
+
+function find_dependency_path(ir::IR, x::Variable)
+  deps = dependencies(ir)
+  return _find_dependency_path(deps, x)
+end
+
 function usecounts(ir::IR)
   counts = Dict{Variable,Int}()
   prewalk(ir) do x
