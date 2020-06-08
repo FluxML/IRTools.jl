@@ -42,6 +42,8 @@ function usages(b::Block)
 end
 
 usages(st::Statement) = usages(st.expr)
+usages(ex) = Set{Variable}()
+
 function usages(ex::Expr)
   uses = Set{Variable}()
   prewalk(ex) do x

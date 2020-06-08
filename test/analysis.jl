@@ -36,3 +36,21 @@ ir = @code_ir f(1.0)
 )
 
 @test find_dependency_path(ir, var(9)) == Set(var.([2, 8, 7, 3, 4, 6]))
+
+function f(x)
+  x = sin(x)
+  y = cos(x)
+
+  @info "warning" x
+
+  if x > 1
+    x = cos(x) + 1
+  else
+    x = y + 1
+  end
+  return x
+end
+
+ir = @code_ir f(1.0)
+
+@test find_dependency_path(ir, var(48)) == Set(var.([47, 46, 42, 45, 41, 3, 4, 2]))
