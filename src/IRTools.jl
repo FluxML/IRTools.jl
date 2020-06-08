@@ -52,10 +52,10 @@ let exports = :[
       Simple, Loop, Multiple, reloop, stackify, functional, cond, WorkQueue,
       Graph, liveness, interference, colouring,
       # Reflection, Dynamo
-      Meta, TypedMeta, Lambda, meta, typed_meta, dynamo, transform, refresh, recurse!, self,
+      Meta, Lambda, meta, dynamo, transform, refresh, recurse!, self,
       varargs!, slots!,
       ].args
-  append!(exports, Symbol.(["@code_ir", "@dynamo", "@meta", "@typed_meta"]))
+  append!(exports, Symbol.(["@code_ir", "@dynamo", "@meta"]))
   for x in exports
     @eval const $x = Inner.$x
   end

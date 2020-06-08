@@ -7,9 +7,7 @@ This page provides a comprehensive reference for IRTools functionality.
 ```@docs
 @code_ir
 IRTools.meta
-IRTools.typed_meta
 IRTools.@meta
-IRTools.@typed_meta
 ```
 
 ## IR Manipulation

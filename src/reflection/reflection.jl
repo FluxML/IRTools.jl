@@ -6,18 +6,6 @@ worldcounter() = ccall(:jl_get_world_counter, UInt, ())
 
 isprecompiling() = ccall(:jl_generating_output, Cint, ()) == 1
 
-struct TypedMeta
-  frame::InferenceState
-  method::Method
-  code::CodeInfo
-  ret
-end
-
-function Base.show(io::IO, meta::TypedMeta)
-  print(io, "Typed metadata for ")
-  print(io, meta.method)
-end
-
 define_typeinf_code2() = isprecompiling() ||
 @eval Core.Compiler function typeinf_code2(method::Method, @nospecialize(atypes), sparams::SimpleVector, run_optimizer::Bool, params::Params)
     if $(VERSION >= v"1.2-")
@@ -38,35 +26,6 @@ define_typeinf_code2() = isprecompiling() ||
     ccall(:jl_typeinf_end, Cvoid, ())
     frame.inferred || return (nothing, Any)
     return frame
-end
-
-"""
-    typed_meta(Tuple{...})
-
-Same as [`@meta`](@ref), but represents the method after type inference. IR
-constructed with typed metadata will have type annotations.
-
-See also [`@typed_meta`](@ref).
-
-    julia> IRTools.typed_meta(Tuple{typeof(gcd),Int,Int})
-    Typed metadata for gcd(a::T, b::T) where T<:Union{Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8} in Base at intfuncs.jl:31
-"""
-function typed_meta(T; world = worldcounter(), optimize = false)
-  F = T.parameters[1]
-  F isa DataType && (F.name.module === Core.Compiler ||
-                     F <: Core.Builtin ||
-                     F <: Core.Builtin) && return nothing
-  _methods = Base._methods_by_ftype(T, -1, world)
-  length(_methods) == 1 || return nothing
-  type_signature, sps, method = first(_methods)
-  params = Core.Compiler.Params(world)
-  frame = Core.Compiler.typeinf_code2(method, type_signature, sps, optimize, params)
-  ci = frame.src
-  ci.inferred = true
-  if ci.ssavaluetypes == 0 # constant return; IRCode doesn't like this
-    ci.ssavaluetypes = Any[Any]
-  end
-  return TypedMeta(frame, method, ci, widenconst(frame.result.result))
 end
 
 struct Meta
@@ -92,7 +51,7 @@ untvar(x) = x
 Construct metadata for a given method signature. Metadata can then be used to
 construct [`IR`](@ref) or used to perform other reflection on the method.
 
-See also [`@meta`](@ref), [`typed_meta`](@ref).
+See also [`@meta`](@ref).
 
     julia> IRTools.meta(Tuple{typeof(gcd),Int,Int})
     Metadata for gcd(a::T, b::T) where T<:Union{Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8} in Base at intfuncs.jl:31
@@ -153,20 +112,6 @@ macro meta(ex)
   :(meta(typesof($(esc.((f, args...))...))))
 end
 
-"""
-    @typed_meta f(args...)
-
-Convenience macro for retrieving typed metadata without writing a full type signature.
-
-    julia> IRTools.@typed_meta gcd(10, 5)
-    Typed metadata for gcd(a::T, b::T) where T<:Union{Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8} in Base at intfuncs.jl:31
-"""
-macro typed_meta(ex)
-  isexpr(ex, :call) || error("@meta f(args...)")
-  f, args = ex.args[1], ex.args[2:end]
-  :(typed_meta(typesof($(esc.((f, args...))...))))
-end
-
 function code_ir(f, T)
   m = meta(Tuple{Typeof(f),T.parameters...})
   return IR(m)
@@ -195,7 +140,6 @@ macro code_ir(ex)
 end
 
 codeinfo(m::Meta) = m.code
-codeinfo(m::TypedMeta) = m.code
 
 function argnames!(meta, names...)
   meta.code.slotnames = [names...]
