@@ -6,10 +6,8 @@ function Base.show(io::IO, x::Variable)
   haskey(bs, x) ? print(io, bs[x]) : print(io, "%", x.id)
 end
 
-const printers = Dict{Symbol,Any}()
-
-print_stmt(io::IO, ex::Expr) = get(printers, ex.head, print)(io, ex)
-
+print_stmt(io::IO, ex::Expr) = print_stmt(io::IO, Val(ex.head), ex)
+print_stmt(io::IO, ::Val, ex) = print(io, ex)
 print_stmt(io::IO, ex) = print(io, ex)
 
 function show(io::IO, b::Branch)
@@ -79,15 +77,15 @@ function print_stmt(io::IO, ex::IR)
   show(io, ex)
 end
 
-printers[:enter] = function (io, ex)
+function print_stmt(io::IO, ::Val{:enter}, ex)
   print(io, "try #$(ex.args[1])")
 end
 
-printers[:leave] = function (io, ex)
+function print_stmt(io::IO, ::Val{:enter}, ex)
   print(io, "end try")
 end
 
-printers[:catch] = function (io, ex)
+function print_stmt(io::IO, ::Val{:catch}, ex)
   print(io, "catch $(ex.args[1])")
   args = ex.args[2:end]
   if !isempty(args)
@@ -97,7 +95,7 @@ printers[:catch] = function (io, ex)
   end
 end
 
-printers[:pop_exception] = function (io, ex)
+function print_stmt(io::IO, ::Val{:pop_exception}, ex)
   print(io, "pop exception $(ex.args[1])")
 end
 
@@ -118,7 +116,7 @@ function lambdacx(io, ex)
   return bs′
 end
 
-printers[:lambda] = function (io, ex)
+function print_stmt(io::IO, ::Val{:lambda}, ex)
   print(io, "λ :")
   # printargs(io, ex.args[2:end])
   io = IOContext(io, :indent   => get(io, :indent, 0)+2,
