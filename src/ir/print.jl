@@ -81,7 +81,7 @@ function print_stmt(io::IO, ::Val{:enter}, ex)
   print(io, "try #$(ex.args[1])")
 end
 
-function print_stmt(io::IO, ::Val{:enter}, ex)
+function print_stmt(io::IO, ::Val{:leave}, ex)
   print(io, "end try")
 end
 
