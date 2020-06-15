@@ -118,8 +118,13 @@ function code_ir(f, T)
 end
 
 function code_irm(ex)
-  isexpr(ex, :call) || error("@code_ir f(args...)")
-  f, args = ex.args[1], ex.args[2:end]
+  if isexpr(ex, :call)
+    f, args = ex.args[1], ex.args[2:end]
+  elseif isexpr(ex, :do)
+    f, args = ex.args[1].args[1], vcat(ex.args[2], ex.args[1].args[2:end])
+  else
+    error("@code_ir f(args...)")
+  end
   :($code_ir($(esc(f)), typesof($(esc.(args)...))))
 end
 
