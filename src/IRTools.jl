@@ -33,10 +33,6 @@ module Inner
   include("interpret.jl")
   include("eval.jl")
 
-  function __init__()
-    define_typeinf_code2()
-  end
-
 end
 
 let exports = :[

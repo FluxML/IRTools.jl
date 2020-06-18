@@ -6,28 +6,6 @@ worldcounter() = ccall(:jl_get_world_counter, UInt, ())
 
 isprecompiling() = ccall(:jl_generating_output, Cint, ()) == 1
 
-define_typeinf_code2() = isprecompiling() ||
-@eval Core.Compiler function typeinf_code2(method::Method, @nospecialize(atypes), sparams::SimpleVector, run_optimizer::Bool, params::Params)
-    if $(VERSION >= v"1.2-")
-      code = specialize_method(method, atypes, sparams)
-    else
-      code = code_for_method(method, atypes, sparams, params.world)
-    end
-    code === nothing && return (nothing, Any)
-    ccall(:jl_typeinf_begin, Cvoid, ())
-    result = InferenceResult(code)
-    frame = InferenceState(result, false, params)
-    frame === nothing && return (nothing, Any)
-    if typeinf(frame) && run_optimizer
-        opt = OptimizationState(frame)
-        optimize(opt, result.result)
-        opt.src.inferred = true
-    end
-    ccall(:jl_typeinf_end, Cvoid, ())
-    frame.inferred || return (nothing, Any)
-    return frame
-end
-
 struct Meta
   method::Method
   instance::MethodInstance
