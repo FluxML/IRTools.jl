@@ -47,3 +47,26 @@ let
   @test f(nothing, 2, 3) == 3
   @test f(nothing, 3, 2) == 3
 end
+
+function foo1(x)
+  while x < 10
+    x += 1
+  end
+  return x
+end
+
+function foo2(x)
+  if x < 100
+    x + foo1(x)
+  else
+    x
+  end
+end
+
+let
+  ir = @code_ir foo2(1)
+  ir2 = @code_ir foo1(1)
+  ir3 = IRTools.inline(ir, IRTools.var(4), ir2)
+  @test IRTools.func(ir3)(nothing, 2) == 12
+  @test IRTools.func(ir3)(nothing, 101) == 101
+end

@@ -1,5 +1,16 @@
+function fixup_blocks!(ir, n)
+  last = length(blocks(ir))
+  for bl in blocks(ir), i = 1:length(branches(bl))
+    br = branches(bl)[i]
+    if br.block > last
+      branches(bl)[i] = Branch(br, block = br.block + n - 1)
+    end
+  end
+end
+
 function inlinehere!(ir, source, args...)
   source = merge_returns!(copy(source)) # TODO preserve type info
+  offset = length(blocks(ir.to))-1
   env = Dict()
   retvalue = nothing
   rename(x::Variable) = env[x]
@@ -23,7 +34,7 @@ function inlinehere!(ir, source, args...)
       if isreturn(br)
         retvalue = rename(returnvalue(br))
       else
-        branch!(ir, br.block, rename.(br.args)..., unless = br.condition)
+        branch!(ir, br.block+offset, rename.(br.args)..., unless = rename(br.condition))
       end
     end
   end
@@ -57,6 +68,7 @@ function inline(ir::IR, loc::Variable, source::IR)
   pr = Pipe(ir)
   for (v, st) in pr
     if v === loc
+      fixup_blocks!(pr.to, length(blocks(source)))
       ex = ir[loc].expr
       delete!(pr, v)
       v′ = inlinehere!(pr, source, ex.args...)
