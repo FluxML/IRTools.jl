@@ -1,17 +1,16 @@
 language: julia
 
 os:
-  - osx
   - linux
 
 julia:
   - 1.0
   - 1
   - nightly
-  
+
 notifications:
   email: false
-  
+
 jobs:
   allow_failures:
     - julia: nightly
