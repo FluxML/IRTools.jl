@@ -66,8 +66,17 @@ julia> inline(ir, var(4), @code_ir(max(1,1)))
 """
 function inline(ir::IR, loc::Variable, source::IR)
   pr = Pipe(ir)
+  startblock = 0
+  branches(pr) do br
+    if startblock != 0 && br.block > startblock
+      Branch(br, block = br.block + length(blocks(source)) - 1)
+    else
+      return br
+    end
+  end
   for (v, st) in pr
     if v === loc
+      startblock = length(blocks(pr.to))
       fixup_blocks!(pr.to, length(blocks(source)))
       ex = ir[loc].expr
       delete!(pr, v)

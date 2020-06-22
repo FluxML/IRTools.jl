@@ -70,3 +70,24 @@ let
   @test IRTools.func(ir3)(nothing, 2) == 12
   @test IRTools.func(ir3)(nothing, 101) == 101
 end
+
+
+function foo1(x)
+  while x < 10
+    x += 1
+  end
+  return x
+end
+
+function foo2(x)
+  foo1(x)
+  x > 0 ? x : 0
+end
+
+let
+  ir = @code_ir foo2(1)
+  ir2 = @code_ir foo1(1)
+  ir3 = IRTools.inline(ir, IRTools.var(3), ir2)
+  @test IRTools.func(ir3)(nothing, 2) == foo2(2)
+  @test IRTools.func(ir3)(nothing, -2) == foo2(-2)
+end
