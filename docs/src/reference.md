@@ -38,6 +38,7 @@ IRTools.branch!
 IRTools.return!
 IRTools.successors
 IRTools.predecessors
+IRTools.inline
 keys
 haskey
 push!

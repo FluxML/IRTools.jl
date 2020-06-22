@@ -960,3 +960,13 @@ function branch!(ir::Pipe, b, args...; kw...)
   branch!(blocks(ir.to)[end], b, args...; kw...)
   return ir
 end
+
+function block!(p::Pipe)
+  block!(p.to)
+  return
+end
+
+function blockargument!(p::Pipe, type)
+  x = argument!(blocks(p.to)[end], nothing, type, insert = false)
+  substitute!(p, var!(p), x)
+end
