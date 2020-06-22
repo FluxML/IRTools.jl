@@ -30,6 +30,29 @@ function inlinehere!(ir, source, args...)
   return retvalue
 end
 
+"""
+    inline(ir, location, source)
+
+Replace the function call at `ir[location]` with the IR `source`. The inlined IR
+will use the function arguments at `ir[location]` as its input.
+
+```
+julia> foo(x, y) = max(x, y)+1
+
+julia> ir = @code_ir foo(1, 1)
+1: (%1, %2, %3)
+  %4 = Main.max(%2, %3)
+  %5 = %4 + 1
+  return %5
+
+julia> inline(ir, var(4), @code_ir(max(1,1)))
+1: (%1, %2, %3)
+  %4 = %3 < %2
+  %5 = Base.ifelse(%4, %2, %3)
+  %6 = %5 + 1
+  return %6
+```
+"""
 function inline(ir::IR, loc::Variable, source::IR)
   pr = Pipe(ir)
   for (v, st) in pr
