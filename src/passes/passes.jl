@@ -46,11 +46,45 @@ usages(ex) = Set{Variable}()
 
 function usages(ex::Expr)
   uses = Set{Variable}()
-  prewalk(ex) do x
+  for x in ex.args
     x isa Variable && push!(uses, x)
-    return x
   end
   return uses
+end
+
+function block_changes_deps(deps, ir, b)
+  for (v, st) in b
+    if haskey(deps, v)
+      (usages(st) ⊆ deps[v]) || return true
+    else
+      return true
+    end
+  end
+
+  brs = branches(b)
+  for br in brs
+    if br.block > 0
+      next_block = block(ir, br.block)
+      if !isempty(br.args)
+        for (x, y) in zip(arguments(next_block), br.args)
+          haskey(deps, x) && (y in deps[x]) && return true
+        end
+      end
+    end
+  end
+  return false
+end
+
+function update_deps!(deps, v, direct)
+  set = get!(deps, v, Set{Variable}())
+  union!(set, setdiff(direct, (v, )))
+  
+  for x in direct
+    if (v != x) && haskey(deps, x) && !(deps[x] ⊆ set)
+      update_deps!(deps, v, deps[x])
+    end
+  end
+  return deps
 end
 
 """
@@ -64,48 +98,26 @@ function dependencies(ir::IR)
   while !isempty(worklist)
     b = pop!(worklist)
     for (v, st) in b
-      set = get!(deps, v, Set{Variable}())
-      union!(set, usages(st))
+      update_deps!(deps, v, usages(st))
     end
 
-    brs = BasicBlock(b).branches
-    jump_next_block = true
+    brs = branches(b)
     for br in brs
-      jump_next_block = jump_next_block && (br.condition !== nothing)
-      if br.block > 0
+      if br.block > 0 # reachable
         next_block = block(ir, br.block)
-        push!(worklist, next_block)
-        if !isempty(br.args)
+        if !isempty(br.args) # pass arguments
           for (x, y) in zip(arguments(next_block), br.args)
-            set = get!(deps, x, Set{Variable}())
-            push!(set, y)
+            y isa Variable && update_deps!(deps, x, (y, ))
           end
+        end
+
+        if block_changes_deps(deps, ir, next_block)
+          push!(worklist, next_block)
         end
       end
     end
-    jump_next_block && push!(worklist, block(ir, b.block+1))
   end
   return deps
-end
-
-function _find_dependency_path(deps::Dict, x::Variable)
-  path = Set{Variable}()
-  stack = Variable[x]
-  while !isempty(stack)
-    curr = pop!(stack)
-    if haskey(deps, curr)
-      for v in deps[curr]
-        push!(path, v)
-        push!(stack, v)
-      end
-    end
-  end
-  return path
-end
-
-function find_dependency_path(ir::IR, x::Variable)
-  deps = dependencies(ir)
-  return _find_dependency_path(deps, x)
 end
 
 function usecounts(ir::IR)
