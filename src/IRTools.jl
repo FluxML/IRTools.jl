@@ -25,6 +25,7 @@ module Inner
   include("reflection/dynamo.jl")
 
   include("passes/passes.jl")
+  include("passes/inline.jl")
   include("passes/cps.jl")
   include("passes/relooper.jl")
   include("passes/stackifier.jl")
@@ -32,10 +33,6 @@ module Inner
 
   include("interpret.jl")
   include("eval.jl")
-
-  function __init__()
-    define_typeinf_code2()
-  end
 
 end
 
@@ -50,7 +47,7 @@ let exports = :[
       definitions, usages, dominators, domtree, domorder, domorder!, renumber,
       merge_returns!, expand!, prune!, ssa!, inlineable!, log!, pis!, func, evalir,
       Simple, Loop, Multiple, reloop, stackify, functional, cond, WorkQueue,
-      Graph, liveness, interference, colouring, dependencies, find_dependency_path,
+      Graph, liveness, interference, colouring, inline, dependencies, find_dependency_path,
       # Reflection, Dynamo
       Meta, Lambda, meta, dynamo, transform, refresh, recurse!, self,
       varargs!, slots!,

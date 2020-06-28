@@ -955,8 +955,19 @@ end
 argument!(p::Pipe, a...; kw...) =
   substitute!(p, var!(p), argument!(p.to, a...; kw...))
 
-function branch!(ir::Pipe, b, args...; kw...)
+function branch!(ir::Pipe, b, args...; unless = nothing)
   args = map(a -> substitute(ir, a), args)
-  branch!(blocks(ir.to)[end], b, args...; kw...)
+  cond = substitute(ir, unless)
+  branch!(blocks(ir.to)[end], b, args...; unless = cond)
   return ir
+end
+
+function block!(p::Pipe)
+  block!(p.to)
+  return
+end
+
+function blockargument!(p::Pipe, type)
+  x = argument!(blocks(p.to)[end], nothing, type, insert = false)
+  substitute!(p, var!(p), x)
 end
