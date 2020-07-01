@@ -102,7 +102,12 @@ function dependencies(ir::IR)
     end
 
     brs = branches(b)
+    jump_next_block = true
     for br in brs
+      if br.condition === nothing
+        jump_next_block = false
+      end
+
       if br.block > 0 # reachable
         next_block = block(ir, br.block)
         if !isempty(br.args) # pass arguments
@@ -114,6 +119,13 @@ function dependencies(ir::IR)
         if block_changes_deps(deps, ir, next_block)
           push!(worklist, next_block)
         end
+      end
+    end
+
+    if jump_next_block
+      next_block = block(ir, b.id + 1)
+      if block_changes_deps(deps, ir, next_block)
+        push!(worklist, next_block)
       end
     end
   end
