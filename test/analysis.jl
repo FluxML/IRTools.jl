@@ -1,5 +1,5 @@
 using IRTools, Test
-using IRTools: CFG, dominators, domtree, dependencies, find_dependency_path, var
+using IRTools: CFG, dominators, domtree, dependencies, var
 
 relu(x) = (y = x > 0 ? x : 0)
 ir = @code_ir relu(1)
