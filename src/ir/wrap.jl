@@ -6,7 +6,11 @@ using ..Inner, ..IRTools
 import ..Inner: IR, Variable, Statement, Branch, BasicBlock, Meta, block!,
   unreachable, varmap, argument!, branch!, return!
 import Core: CodeInfo, GotoNode, SSAValue
-import Core.Compiler: IRCode, CFG, GotoIfNot, ReturnNode, StmtRange, InstructionStream
+import Core.Compiler: IRCode, CFG, GotoIfNot, ReturnNode, StmtRange
+
+@static if VERSION > v"1.6-"
+  import Core.Compiler: InstructionStream
+end
 
 unvars(ex) = prewalk(x -> x isa Variable ? SSAValue(x.id) : x, ex)
 
