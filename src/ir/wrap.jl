@@ -57,9 +57,9 @@ function IRCode(ir::IR)
   flags = [0x00 for _ in stmts]
   sps = VERSION > v"1.2-" ? [] : Core.svec()
 
-  stmtinfo = Any[nothing for _ in 1:length(length(stmts))]
-  stmts = InstructionStream(stmts, types, stmtinfo, lines, flags)
   @static if VERSION > v"1.6-"
+    stmtinfo = Any[nothing for _ in 1:length(length(stmts))]
+    stmts = InstructionStream(stmts, types, stmtinfo, lines, flags)
     IRCode(stmts, cfg, ir.lines, ir.blocks[1].argtypes, [], sps)
   else
     IRCode(stmts, types, lines, flags, cfg, ir.lines, ir.blocks[1].argtypes, [], sps)
