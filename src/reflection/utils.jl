@@ -57,12 +57,21 @@ using Core.Compiler: CodeInfo, SlotNumber
 function slots!(ci::CodeInfo)
   ss = Dict{Slot,SlotNumber}()
   for i = 1:length(ci.code)
-    ci.code[i] = MacroTools.prewalk(ci.code[i]) do x
+    function f(x)
       x isa Slot || return x
       haskey(ss, x) && return ss[x]
       push!(ci.slotnames, x.id)
       push!(ci.slotflags, 0x00)
       ss[x] = SlotNumber(length(ci.slotnames))
+    end
+    if VERSION >= v"1.6.0-DEV.272"
+      ci.code[i] = MacroTools.prewalk(ci.code[i]) do x
+        x isa Core.ReturnNode ? Core.ReturnNode(f(x.val)) :
+        x isa Core.GotoIfNot ? Core.GotoIfNot(f(x.cond), x.dest) :
+        f(x)
+      end
+    else
+      ci.code[i] = MacroTools.prewalk(f, ci.code[i])
     end
   end
   return ci
