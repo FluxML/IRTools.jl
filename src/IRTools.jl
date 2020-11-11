@@ -4,6 +4,11 @@ export @code_ir
 
 module Inner
 
+  @nospecialize
+  @static if VERSION > v"1.5.0-"
+    Base.Experimental.@optlevel 0
+  end
+
   using MacroTools
   using MacroTools: @q, prewalk, postwalk
   import ..IRTools
