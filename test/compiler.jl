@@ -16,6 +16,11 @@ add(a, b) = a+b
 @test passthrough(add, 2, 3) == 5
 @test passthrough(sin, 1.0) == sin(1.0)
 
+f_returnnode(::T) where {T} = T
+@test passthrough(f_returnnode, 1) == Int
+f_gotoifnot(::Val{x}) where {x} = x ? 1 : 0
+@test passthrough(f_gotoifnot, Val(true)) == 1
+
 @test @code_ir(passthrough, add(2, 3)) isa IR
 
 IRTools.refresh(roundtrip)
