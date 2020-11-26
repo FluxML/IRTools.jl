@@ -21,7 +21,7 @@ function IRCode(ir::IR)
   for b in IRTools.blocks(ir)
     if b.id == 1
       for (i, arg) in enumerate(IRTools.arguments(b))
-        defs[arg] = Core.Compiler.Argument(i)
+        defs[arg] = Core.SlotNumber(i)
       end
     else
       @assert isempty(BasicBlock(b).args)
@@ -66,15 +66,30 @@ function IRCode(ir::IR)
   end
 end
 
+if VERSION >= v"1.6.0-DEV.272"
+    isgotoifnot(@nospecialize(ex)) = (@assert !isexpr(ex, :gotoifnot); ex isa Core.GotoIfNot)
+    destruct_gotoifnot(@nospecialize(ex)) = Any[ex.cond, ex.dest]
+
+    isreturn(@nospecialize(ex)) = (@assert !isexpr(ex, :return); ex isa ReturnNode)
+    retval(@nospecialize(ex)) = ex.val
+else
+    isgotoifnot(@nospecialize(ex)) = isexpr(ex, :gotoifnot)
+    destruct_gotoifnot(@nospecialize(ex)) = ex.args
+
+    isreturn(@nospecialize(ex)) = isexpr(ex, :return)
+    retval(@nospecialize(ex)) = ex.args[1]
+end
+
 function blockstarts(ci::CodeInfo)
   bs = Int[]
   terminator = false
   for i = 1:length(ci.code)
     ex = ci.code[i]
-    if isexpr(ex, :gotoifnot)
-      push!(bs, ex.args[2])
+    if isgotoifnot(ex)
+      _, dest = destruct_gotoifnot(ex)
+      push!(bs, dest)
       terminator = true
-    elseif isexpr(ex, GotoNode, :return)
+    elseif ex isa GotoNode || isreturn(ex)
       ex isa GotoNode && push!(bs, ex.label)
       i < length(ci.code) && push!(bs, i+1)
       terminator = false
@@ -108,13 +123,14 @@ function IR(ci::CodeInfo, nargs::Integer; meta = nothing)
       continue
     elseif isexpr(ex, :enter)
       _rename[Core.SSAValue(i)] = push!(ir, Expr(:enter, findfirst(==(ex.args[1]), bs)+1))
-    elseif isexpr(ex, GotoNode)
+    elseif ex isa GotoNode
       branch!(ir, findfirst(==(ex.label), bs)+1)
-    elseif isexpr(ex, :gotoifnot)
-      branch!(ir, findfirst(==(ex.args[2]), bs)+1,
-              unless = rename(ex.args[1]))
-    elseif isexpr(ex, :return)
-      return!(ir, rename(ex.args[1]))
+    elseif isgotoifnot(ex)
+      cond, dest = destruct_gotoifnot(ex)
+      branch!(ir, findfirst(==(dest), bs)+1,
+              unless = rename(cond))
+    elseif isreturn(ex)
+      return!(ir, rename(retval(ex)))
     else
       _rename[Core.SSAValue(i)] = push!(ir, IRTools.stmt(rename(ex), line = ci.codelocs[i]))
     end
