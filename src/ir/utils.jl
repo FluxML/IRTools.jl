@@ -69,9 +69,9 @@ function exprtype(ir::IR, x::Variable; typeof = Typeof)
   b, i = get(ir.defs, x.id, (-1, -1))
   b == -1 && error("No such variable $x")
   if i > 0
-    widenconst(ir[x].type)
+    ir[x].type
   else
-    widenconst(ir.blocks[b].argtypes[-i])
+    ir.blocks[b].argtypes[-i]
   end
 end
 

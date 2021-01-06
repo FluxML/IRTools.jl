@@ -80,7 +80,7 @@ end
 function varargs!(meta, ir::IR, n = 0)
   isva = meta.method.isva
   argTs = ir.blocks[1].argtypes
-  Ts = widenconst.(argTs[n+1:end])
+  Ts = Core.Compiler.widenconst.(argTs[n+1:end])
   typed = !all(T -> T==Any, Ts)
   allTs = !isva ?
     Any[argTs[1:n]..., Tuple{Ts...}] :

@@ -1,5 +1,5 @@
 using Core: CodeInfo, Typeof
-using Core.Compiler: InferenceState, MethodInstance, widenconst, svec
+using Core.Compiler: InferenceState, MethodInstance, svec
 using InteractiveUtils: typesof
 
 worldcounter() = ccall(:jl_get_world_counter, UInt, ())
