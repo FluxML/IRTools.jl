@@ -15,9 +15,9 @@ function build_codeinfo(ir::IR)
 end
 
 function func(m::Module, ir::IR)
-  @eval @generated function $(gensym())($([Symbol(:arg, i) for i = 1:length(arguments(ir))]...))
-    return build_codeinfo($ir)
-  end
+  @eval m (@generated function $(gensym())($([Symbol(:arg, i) for i = 1:length(arguments(ir))]...))
+    return $build_codeinfo($ir)
+  end)
 end
 
 func(ir::IR) = func(Main, ir)
