@@ -2,6 +2,12 @@ using Core: CodeInfo, Typeof
 using Core.Compiler: InferenceState, MethodInstance, svec
 using InteractiveUtils: typesof
 
+if isdefined(Base, :hasgenerator) # VERSION >= v"1.7.0"
+  hasgenerator(x) = Base.hasgenerator(x)
+else
+  hasgenerator(x) = Base.isgenerated(x)
+end
+
 worldcounter() = ccall(:jl_get_world_counter, UInt, ())
 
 isprecompiling() = ccall(:jl_generating_output, Cint, ()) == 1
@@ -46,10 +52,10 @@ function meta(T; types = T, world = worldcounter())
   sps = svec(map(untvar, sps)...)
   @static if VERSION >= v"1.2-"
     mi = Core.Compiler.specialize_method(method, types, sps)
-    ci = Base.isgenerated(mi) ? Core.Compiler.get_staged(mi) : Base.uncompressed_ast(method)
+    ci = hasgenerator(mi) ? Core.Compiler.get_staged(mi) : Base.uncompressed_ast(method)
   else
     mi = Core.Compiler.code_for_method(method, types, sps, world, false)
-    ci = Base.isgenerated(mi) ? Core.Compiler.get_staged(mi) : Base.uncompressed_ast(mi)
+    ci = hasgenerator(mi) ? Core.Compiler.get_staged(mi) : Base.uncompressed_ast(mi)
   end
   Base.Meta.partially_inline!(ci.code, [], method.sig, Any[sps...], 0, 0, :propagate)
   Meta(method, mi, ci, method.nargs, sps)
