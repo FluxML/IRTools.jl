@@ -133,8 +133,16 @@ function splicearg!(ir::IR)
   return arg
 end
 
+@static if VERSION < v"1.8.0-DEV.267"
+  function replace_code_newstyle!(ci, ir, length(ir.argtypes))
+    return Core.Compiler.replace_code_newstyle!(ci, ir, length(ir.argtypes)-1)
+  end
+else
+  using Core.Compiler: replace_code_newstyle!
+end
+
 function update!(ci::CodeInfo, ir::Core.Compiler.IRCode)
-  Core.Compiler.replace_code_newstyle!(ci, ir, length(ir.argtypes)-1)
+  replace_code_newstyle!(ci, ir, length(ir.argtypes))
   ci.inferred = false
   ci.ssavaluetypes = length(ci.code)
   slots!(ci)
