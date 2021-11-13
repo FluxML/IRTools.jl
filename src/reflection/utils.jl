@@ -134,8 +134,8 @@ function splicearg!(ir::IR)
 end
 
 @static if VERSION < v"1.8.0-DEV.267"
-  function replace_code_newstyle!(ci, ir, length(ir.argtypes))
-    return Core.Compiler.replace_code_newstyle!(ci, ir, length(ir.argtypes)-1)
+  function replace_code_newstyle!(ci, ir, n_argtypes)
+    return Core.Compiler.replace_code_newstyle!(ci, ir, n_argtypes-1)
   end
 else
   using Core.Compiler: replace_code_newstyle!
