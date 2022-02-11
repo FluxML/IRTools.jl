@@ -184,3 +184,13 @@ anf(f::Core.IntrinsicFunction, args...) = f(args...)
 end
 
 @test anf(pow, 2, 3) == 8
+
+function f94(x)
+    i = x
+    while i > 0
+        i -= 1
+    end
+    return x
+end
+@test f94(1) == 1
+@test passthrough(f94, 1) == 1
