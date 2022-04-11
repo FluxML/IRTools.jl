@@ -1,7 +1,8 @@
 # IRTools
 
 [![Build Status](https://travis-ci.org/FluxML/IRTools.jl.svg?branch=master)](https://travis-ci.org/FluxML/IRTools.jl)
-[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://fluxml.github.io/IRTools.jl/latest/)
+[![Dev Docs](https://img.shields.io/badge/docs-dev-blue.svg)](https://fluxml.github.io/IRTools.jl/latest/)
+[![Coverage](https://codecov.io/gh/FluxML/IRTools.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/FluxML/IRTools.jl)
 
 IRTools aims to provide a simple and flexible IR format, expressive enough to work with both lowered and typed Julia code, as well as external IRs. It can be used with Julia metaprogramming tools such as [Cassette](https://github.com/jrevels/Cassette.jl).
 

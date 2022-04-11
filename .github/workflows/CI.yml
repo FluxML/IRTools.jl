@@ -25,6 +25,10 @@ jobs:
           - windows-latest
         arch:
           - x64
+        include:
+          - version: '1.3' # Minimum supported by Zygote, hopefully nobody is using anything lower
+            os: ubuntu-latest
+            arch: x64
     steps:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@v1
@@ -51,7 +55,6 @@ jobs:
         if: matrix.version == '1' && matrix.os == 'ubuntu-latest'
         with:
           file: lcov.info
-  
 
   docs:
     name: Documentation
