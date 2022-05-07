@@ -60,7 +60,7 @@ function IRCode(ir::IR)
   @static if VERSION > v"1.6-"
     stmtinfo = Any[nothing for _ in 1:length(length(stmts))]
     stmts = InstructionStream(stmts, types, stmtinfo, lines, flags)
-    meta = @static if VERSION < v"1.9.0-DEV.472" ? [] : Expr[]
+    meta = @static VERSION < v"1.9.0-DEV.472" ? [] : Expr[]
     IRCode(stmts, cfg, ir.lines, ir.blocks[1].argtypes, meta, sps)
   else
     IRCode(stmts, types, lines, flags, cfg, ir.lines, ir.blocks[1].argtypes, [], sps)
