@@ -44,6 +44,20 @@ function lambdalift!(ir, S, I = ())
   return ir
 end
 
+function lambdaself!(ir, _self = self)
+  for (v, st) in ir
+    if isexpr(st.expr, :lambda)
+      push!(st.expr.args, _self)
+      λ = st.expr.args[1]
+      s = pushfirst!(λ, xcall(:getindex, arguments(λ)[1], length(st.expr.args)-1))
+      lambdaself!(λ, s)
+    else
+      ir[v] = prewalk(x -> x === self ? _self : x, st.expr)
+    end
+  end
+  return ir
+end
+
 function getlambda(ir, I)
   isempty(I) && return ir
   i = 0
@@ -65,6 +79,7 @@ function dynamo(cache, f, args...)
   end
   ir isa Expr && return ir
   ir == nothing && return fallthrough(args...)
+  ir = lambdaself!(ir)
   cache[args] = ir
   ir = lambdalift!(copy(ir), Tuple{f,args...})
   if ir.meta isa Meta
@@ -131,6 +146,7 @@ macro code_ir(dy, ex)
   :(transform(typeof($(esc(dy))), meta($typesof($(esc(f)), $(esc.(args)...)))))
 end
 
+# TODO could support lambdas
 function recurse!(ir, to = self)
   for (x, st) in ir
     isexpr(st.expr, :call) || continue

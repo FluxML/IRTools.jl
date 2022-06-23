@@ -180,7 +180,7 @@ anf(f::Core.IntrinsicFunction, args...) = f(args...)
 @dynamo function anf(args...)
   ir = IR(args...)
   ir == nothing && return
-  functional(recurse!(ir, anf))
+  functional(recurse!(ir))
 end
 
 @test anf(pow, 2, 3) == 8
