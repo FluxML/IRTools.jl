@@ -54,15 +54,20 @@ end
 _union(xs...) = union(xs...)
 _union() = []
 
+successors(cfg::CFG, c::Integer) = cfg[c]
+successors(cfg::CFG, c::Component) = union([successors(cfg, child) for child in c.children]...)
+
 function branchesto(cfg::CFG, cs, i)
   c = cs.children[i]
-  valid = _union([entries(cs.children[j]) for j = 1:length(cs.children) if i != j]...)
-  preds = _union([cfg'[c] for c in blocks(c)]...)
-  forw = filter(next -> next < entries(c)[1] && next in valid, preds)
-  back = filter(next -> next > entries(c)[1] && next in valid, preds)
-  forw = isempty(forw) ? nothing : minimum(forw)
-  back = isempty(back) ? nothing : maximum(back)
-  forw, back
+  forw = findfirst(b -> entries(c)[1] in successors(cfg, b) &&
+                        entries(b)[1] < entries(c)[1],
+                   cs.children)
+  back = findfirst(d -> entries(c)[1] in successors(cfg, d) &&
+                        entries(d)[1] > entries(c)[1],
+                   cs.children)
+  forw = forw == nothing ? nothing : entries(cs.children[forw])[1]
+  back = back == nothing ? nothing : entries(cs.children[back])[1]
+  return forw, back
 end
 
 function stackify(cfg::CFG, cs::Component = components(cfg), forw = [], back = [])
@@ -70,8 +75,8 @@ function stackify(cfg::CFG, cs::Component = components(cfg), forw = [], back = [
   for (i, c) = enumerate(cs.children)
     target = minimum(entries(c))
     f, b = branchesto(cfg, cs, i)
-    f == nothing || push!(forw, entry=>target)
-    b == nothing || push!(back, b    =>target)
+    f == nothing || push!(forw, f=>target)
+    b == nothing || push!(back, b=>target)
     c isa Component && stackify(cfg, c, forw, back)
   end
   return forw, back
