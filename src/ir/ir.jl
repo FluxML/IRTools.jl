@@ -193,7 +193,7 @@ IR(lines::Vector{LineInfoNode}; meta = nothing) = IR([],[BasicBlock()],lines,met
 
 Base.copy(ir::IR) = IR(copy(ir.defs), copy.(ir.blocks), copy(ir.lines), ir.meta)
 
-length(ir::IR) = sum(x -> x[2] > 0, ir.defs)
+length(ir::IR) = sum(x -> x[2] > 0, ir.defs, init = 0)
 
 """
     block!(ir::IR)
