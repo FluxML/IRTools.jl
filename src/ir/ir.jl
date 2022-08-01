@@ -881,7 +881,8 @@ function iterate(p::Pipe, (ks, b, i) = (pipestate(p.from), 1, 1))
   end
   if i > length(ks[b])
     for br in branches(block(p.from, b))
-      push!(p.to.blocks[end].branches, map(substitute(p), p.branch(br)))
+      br′ = p.branch(br)
+      br′ == nothing || push!(p.to.blocks[end].branches, map(substitute(p), br′))
     end
     b == length(ks) && return
     block!(p.to)
