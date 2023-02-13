@@ -55,7 +55,7 @@ function IRCode(ir::IR)
   bs = Core.Compiler.BasicBlock.(ranges, preds, succs)
   cfg = CFG(bs, index)
   flags = [0x00 for _ in stmts]
-  sps = VERSION > v"1.2-" ? [] : Core.svec()
+  sps = VERSION > v"1.2-" ? (VERSION >= v"1.10.0-DEV.552" ? Core.Compiler.VarState[] : []) : Core.svec()
 
   @static if VERSION > v"1.6-"
     @static if isdefined(Core.Compiler, :CallInfo)
