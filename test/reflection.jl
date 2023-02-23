@@ -7,6 +7,11 @@ using IRTools: Meta, meta
 
 @test meta(Tuple{typeof(f),Int}) isa Meta
 
+function g end
+@test meta(Tuple{typeof(g),Int,Int}) === nothing
+g(a) = 2a
+@test meta(Tuple{typeof(g),Int,Int}) === nothing
+
 @test @code_ir(map([1,2], [3,4]) do x, y
   x + y
 end) isa IR

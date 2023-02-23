@@ -47,6 +47,8 @@ function meta(T; types = T, world = worldcounter())
                      F <: Core.Builtin ||
                      F <: Core.Builtin) && return nothing
   _methods = Base._methods_by_ftype(T, -1, world)
+  _methods === nothing && return nothing
+  _methods isa Bool && return nothing
   length(_methods) == 0 && return nothing
   type_signature, sps, method = last(_methods)
   sps = svec(map(untvar, sps)...)
