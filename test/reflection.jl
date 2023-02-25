@@ -7,6 +7,7 @@ using IRTools: Meta, meta
 
 @test meta(Tuple{typeof(f),Int}) isa Meta
 
+# https://github.com/FluxML/IRTools.jl/issues/106
 function g end
 @test meta(Tuple{typeof(g),Int,Int}) === nothing
 g(a) = 2a
