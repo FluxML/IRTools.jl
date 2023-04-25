@@ -64,6 +64,7 @@ function meta(T; types = T, world = worldcounter())
 end
 
 function invoke_tweaks!(ci::CodeInfo)
+  ci.slottypes = [:todo, ci.slottypess[1], :todo, ci.slottypes[2:end]...]
   ci.slotnames = [:invoke, ci.slotnames[1], :T, ci.slotnames[2:end]...]
   ci.slotflags = [0x00, ci.slotflags[1], 0x00, ci.slotflags[2:end]...]
   ci.code = map(ci.code) do x

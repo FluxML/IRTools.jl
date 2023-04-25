@@ -55,6 +55,7 @@ function slots!(ci::CodeInfo)
     function f(x)
       x isa Slot || return x
       haskey(ss, x) && return ss[x]
+      push!(ci.slottypes, x.type)
       push!(ci.slotnames, x.id)
       push!(ci.slotflags, 0x00)
       ss[x] = SlotNumber(length(ci.slotnames))
@@ -128,7 +129,11 @@ function splicearg!(ir::IR)
   return arg
 end
 
-@static if VERSION < v"1.8.0-DEV.267"
+@static if VERSION >= v"1.10.0-DEV.870"
+  function replace_code_newstyle!(ci, ir, _)
+    return Core.Compiler.replace_code_newstyle!(ci, ir)
+  end
+elseif VERSION < v"1.8.0-DEV.267"
   function replace_code_newstyle!(ci, ir, n_argtypes)
     return Core.Compiler.replace_code_newstyle!(ci, ir, n_argtypes-1)
   end

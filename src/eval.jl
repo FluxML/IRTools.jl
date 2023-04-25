@@ -7,6 +7,7 @@ function build_codeinfo(ir::IR)
   ci = code_lowered(dummy, Tuple{})[1]
   ci.inlineable = true
   for arg in arguments(ir)
+    push!(ci.slottypes, Type)
     push!(ci.slotnames, Symbol(""))
     push!(ci.slotflags, 0)
   end
