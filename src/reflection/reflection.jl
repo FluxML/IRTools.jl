@@ -54,10 +54,10 @@ function meta(T; types = T, world = worldcounter())
   sps = svec(map(untvar, sps)...)
   @static if VERSION >= v"1.2-"
     mi = Core.Compiler.specialize_method(method, types, sps)
-    ci = hasgenerator(mi) ? Core.Compiler.get_staged(mi, world) : Base.uncompressed_ast(method)
+    ci = hasgenerator(mi) ? get_staged(mi, world) : Base.uncompressed_ast(method)
   else
     mi = Core.Compiler.code_for_method(method, types, sps, world, false)
-    ci = hasgenerator(mi) ? Core.Compiler.get_staged(mi, world) : Base.uncompressed_ast(mi)
+    ci = hasgenerator(mi) ? get_staged(mi, world) : Base.uncompressed_ast(mi)
   end
   Base.Meta.partially_inline!(ci.code, [], method.sig, Any[sps...], 0, 0, :propagate)
   Meta(method, mi, ci, method.nargs, sps)

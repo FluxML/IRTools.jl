@@ -141,6 +141,16 @@ else
   using Core.Compiler: replace_code_newstyle!
 end
 
+@static if VERSION >= v"1.10.0-DEV.870"
+  function get_staged(mi, world)
+    return Core.Compiler.get_staged(mi, world)
+  end
+else
+  function get_staged(mi, _)
+    return Core.Compiler.get_staged(mi)
+  end
+end
+
 function update!(ci::CodeInfo, ir::Core.Compiler.IRCode)
   replace_code_newstyle!(ci, ir, length(ir.argtypes))
   ci.inferred = false
