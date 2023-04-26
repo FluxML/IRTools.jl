@@ -1,10 +1,11 @@
 using Base: invokelatest
 
 dummy() = return
+const dummy_m = which(dummy, Tuple{})
 
 function build_codeinfo(ir::IR)
   ir = copy(ir)
-  ci = code_lowered(dummy, Tuple{})[1]
+  ci = Base.uncompressed_ir(dummy_m)
   ci.inlineable = true
   for arg in arguments(ir)
     push!(ci.slottypes, Type)
