@@ -8,7 +8,9 @@ function build_codeinfo(ir::IR)
   ci = Base.uncompressed_ir(dummy_m)
   ci.inlineable = true
   for arg in arguments(ir)
-    push!(ci.slottypes, Type)
+    @static if VERSION >= v"1.10.0-DEV.870"
+      push!(ci.slottypes, Type)
+    end
     push!(ci.slotnames, Symbol(""))
     push!(ci.slotflags, 0)
   end

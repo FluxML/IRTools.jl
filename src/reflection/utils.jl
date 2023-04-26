@@ -55,7 +55,9 @@ function slots!(ci::CodeInfo)
     function f(x)
       x isa Slot || return x
       haskey(ss, x) && return ss[x]
-      push!(ci.slottypes, x.type)
+      @static if VERSION >= v"1.10.0-DEV.870"
+        push!(ci.slottypes, x.type)
+      end
       push!(ci.slotnames, x.id)
       push!(ci.slotflags, 0x00)
       ss[x] = SlotNumber(length(ci.slotnames))
