@@ -56,6 +56,7 @@ function slots!(ci::CodeInfo)
       x isa Slot || return x
       haskey(ss, x) && return ss[x]
       @static if VERSION >= v"1.10.0-DEV.870"
+        isnothing(ci.slottypes) && (ci.slottypes = Any[])
         push!(ci.slottypes, x.type)
       end
       push!(ci.slotnames, x.id)

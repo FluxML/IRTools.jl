@@ -9,6 +9,7 @@ function build_codeinfo(ir::IR)
   ci.inlineable = true
   for arg in arguments(ir)
     @static if VERSION >= v"1.10.0-DEV.870"
+      isnothing(ci.slottypes) && (ci.slottypes = Any[])
       push!(ci.slottypes, Type)
     end
     push!(ci.slotnames, Symbol(""))
