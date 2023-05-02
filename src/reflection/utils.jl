@@ -56,7 +56,6 @@ function slots!(ci::CodeInfo)
       x isa Slot || return x
       haskey(ss, x) && return ss[x]
       @static if VERSION >= v"1.10.0-DEV.870"
-        isnothing(ci.slottypes) && (ci.slottypes = Any[])
         push!(ci.slottypes, x.type)
       end
       push!(ci.slotnames, x.id)
@@ -134,6 +133,7 @@ end
 
 @static if VERSION >= v"1.10.0-DEV.870"
   function replace_code_newstyle!(ci, ir, _)
+    isnothing(ci.slottypes) && (ci.slottypes = Any[])
     return Core.Compiler.replace_code_newstyle!(ci, ir)
   end
 elseif VERSION < v"1.8.0-DEV.267"

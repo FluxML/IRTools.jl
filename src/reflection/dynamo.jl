@@ -71,7 +71,7 @@ end
 # Used only for its CodeInfo
 dummy(args...) = nothing
 
-function dynamo(cache, f, args...)
+function dynamo(cache, world, f, args...)
   try
     ir = transform(f, args...)::Union{IR,Expr,Nothing}
   catch e
@@ -88,7 +88,8 @@ function dynamo(cache, f, args...)
     argnames!(m, :args)
     pushfirst!(m.code.slotnames, Symbol("#self#"))
   else
-    m = @meta dummy(1)
+    m = @meta world dummy(1)
+    m === nothing && error("Error looking up metadata for $f")
     m.code.method_for_inference_limit_heuristics = nothing
   end
   _self = splicearg!(ir)
@@ -96,12 +97,12 @@ function dynamo(cache, f, args...)
   return update!(m.code, ir)
 end
 
-function dynamo_lambda(cache, f::Type{<:Lambda{S,I}}) where {S,I}
+function dynamo_lambda(cache, world, f::Type{<:Lambda{S,I}}) where {S,I}
   ir = cache[(S.parameters[2:end]...,)]
   ir = getlambda(ir, I)
   ir = lambdalift!(copy(ir), S, I)
   closureargs!(ir)
-  m = @meta dummy(1)
+  m = @meta world dummy(1)
   m.code.method_for_inference_limit_heuristics = nothing
   return update!(m.code, ir)
 end
@@ -116,6 +117,36 @@ function lifttype(x)
   named ? Expr(:(::), x.args[1], T) : Expr(:(::), T)
 end
 
+const caches = Dict()
+
+if VERSION >= v"1.10.0-DEV.873"
+
+function _generated_ex(world, source, ex)
+    stub = Core.GeneratedFunctionStub(identity, Core.svec(:methodinstance, :args), Core.svec())
+    stub(world, source, ex)
+end
+
+function dynamo_generator(world::UInt, source, self, args)
+  cache = if haskey(caches, self)
+    caches[self]
+  else
+    caches[self] = Dict()
+  end
+  ci = dynamo(cache, world, self, args...)
+  ci isa Expr && return _generated_ex(world, source, ci)
+  return ci
+end
+
+function dynamo_lambda_generator(world::UInt, source, self, args)
+  f = self.parameters[1].parameters[1]
+  cache = caches[f]
+  ci = dynamo_lambda(cache, world, self)
+  ci isa Expr && return _generated_ex(world, source, ci)
+  return ci
+end
+
+end
+
 macro dynamo(ex)
   @capture(shortdef(ex), (name_(args__) = body_) |
                          (name_(args__) where {Ts__} = body_)) ||
@@ -124,12 +155,32 @@ macro dynamo(ex)
   f, T = isexpr(name, :(::)) ?
     (length(name.args) == 1 ? (esc(gensym()), esc(name.args[1])) : esc.(name.args)) :
     (esc(gensym()), :(Core.Typeof($(esc(name)))))
-  gendef = quote
-    local cache = Dict()
-    @generated ($f::$T)($(esc(:args))...) where $(Ts...) =
-      return IRTools.dynamo(cache, $f, args...)
-    @generated (f::IRTools.Inner.Lambda{<:Tuple{<:$T,Vararg{Any}}})(args...) where $(Ts...) =
-      return IRTools.Inner.dynamo_lambda(cache, f)
+  gendef = if VERSION >= v"1.10.0-DEV.873"
+    quote
+      function ($f::$T)($(esc(:args))...) where $(Ts...)
+        $(Expr(:meta, :generated, dynamo_generator))
+        $(Expr(:meta, :generated_only))
+      end
+      function (f::IRTools.Inner.Lambda{<:Tuple{<:$T,Vararg{Any}}})(args...) where $(Ts...)
+        $(Expr(:meta, :generated, dynamo_lambda_generator))
+        $(Expr(:meta, :generated_only))
+      end
+    end
+  else
+    quote
+      @generated function ($f::$T)($(esc(:args))...) where $(Ts...)
+        cache = if haskey($caches, $T)
+          $caches[$T]
+        else
+          $caches[$T] = Dict()
+        end
+        return IRTools.dynamo(cache, nothing, $f, args...)
+      end
+      @generated function (f::IRTools.Inner.Lambda{<:Tuple{<:$T,Vararg{Any}}})(args...) where $(Ts...)
+        cache = $caches[$T]
+        return IRTools.Inner.dynamo_lambda(cache, nothing, f)
+      end
+    end
   end
   quote
     $(isexpr(name, :(::)) || esc(:(function $name end)))
