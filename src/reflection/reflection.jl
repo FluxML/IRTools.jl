@@ -82,7 +82,7 @@ function meta(T; types = T, world=nothing)
 end
 
 function invoke_tweaks!(ci::CodeInfo)
-  @static if VERSION >= v"1.10.0-DEV.870"
+  if VERSION >= v"1.10.0-DEV.870" && ci.slottypes !== nothing
     ci.slottypes = [typeof(invoke), ci.slottypes[1], Type, ci.slottypes[2:end]...]
   end
   ci.slotnames = [:invoke, ci.slotnames[1], :T, ci.slotnames[2:end]...]
