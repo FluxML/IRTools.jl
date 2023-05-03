@@ -29,6 +29,8 @@ end
 untvar(t::TypeVar) = t.ub
 untvar(x) = x
 
+const spoofed_world = Ref{Union{Nothing,UInt}}(nothing)
+
 """
     meta(Tuple{...})
 
@@ -42,7 +44,9 @@ See also [`@meta`](@ref).
 """
 function meta(T; types = T, world=nothing)
   if world === nothing
-    world = worldcounter()
+    # if the user didn't specify a world, use the current world,
+    # or a spoofed world if we're executing a dynamo
+    world = something(spoofed_world[], worldcounter())
   end
   F = T.parameters[1]
   F == typeof(invoke) && return invoke_meta(T; world = world)

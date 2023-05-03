@@ -73,10 +73,18 @@ dummy(args...) = nothing
 
 function dynamo(cache, world, f, args...)
   try
+    # XXX: @dynamo should pass the world to the transform function, so that any
+    #      IR look-ups are done in the correct world.
+    spoofed_world[] = world
     ir = transform(f, args...)::Union{IR,Expr,Nothing}
   catch e
     rethrow(CompileError(f, args, e))
+  finally
+    spoofed_world[] = nothing
   end
+  # TODO: how to set proper edges on the returned code info? we have to
+  #       propagate the bounds from `methods_by_ftype`, but that lookup is
+  #       done by `IRTools.meta` and is not available here.
   ir isa Expr && return ir
   ir == nothing && return fallthrough(args...)
   ir = lambdaself!(ir)
