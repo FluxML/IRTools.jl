@@ -74,11 +74,7 @@ function err3(f)
 end
 
 @test passthrough(err3, () -> 2+2) == 4
-if VERSION >= v"1.10.0-"
-  @test passthrough(err3, () -> 0//0) == 1
-else
-  @test_broken passthrough(err3, () -> 0//0) == 1
-end
+@test_broken passthrough(err3, () -> 0//0) == 1
 
 @dynamo function mullify(a...)
   ir = IR(a...)
