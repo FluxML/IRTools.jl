@@ -3,8 +3,7 @@ using Base: invokelatest
 dummy() = return
 const dummy_m = which(dummy, Tuple{})
 
-function build_codeinfo(ir::IR, world)
-  # TODO: use `world`, if available (for looking up code, and to set edges)
+function build_codeinfo(ir::IR)
   ir = copy(ir)
   ci = Base.uncompressed_ir(dummy_m)
   ci.inlineable = true
@@ -20,14 +19,14 @@ function build_codeinfo(ir::IR, world)
   update!(ci, ir)
 end
 
-# JuliaLang/julia#48611: world age is exposed to generated functions, and should be used
+# JuliaLang/julia#48611: world age is exposed to generated functions.
 if VERSION >= v"1.10.0-DEV.873"
 
 function func(m::Module, ir::IR)
   generator = @eval m begin
     function $(gensym())(world::UInt, source, self,
                          $([Symbol(:arg, i) for i = 1:length(arguments(ir))]...))
-      return $build_codeinfo($ir, world)
+      return $build_codeinfo($ir)
     end
   end
   @eval m begin
@@ -42,7 +41,7 @@ else
 
 function func(m::Module, ir::IR)
   @eval m (@generated function $(gensym())($([Symbol(:arg, i) for i = 1:length(arguments(ir))]...))
-    return $build_codeinfo($ir, nothing)
+    return $build_codeinfo($ir)
   end)
 end
 
