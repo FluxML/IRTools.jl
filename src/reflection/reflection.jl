@@ -83,7 +83,7 @@ end
 
 function invoke_tweaks!(ci::CodeInfo)
   @static if VERSION >= v"1.10.0-DEV.870"
-    ci.slottypes = [typeof(invoke), ci.slottypess[1], Type, ci.slottypes[2:end]...]
+    ci.slottypes = [typeof(invoke), ci.slottypes[1], Type, ci.slottypes[2:end]...]
   end
   ci.slotnames = [:invoke, ci.slotnames[1], :T, ci.slotnames[2:end]...]
   ci.slotflags = [0x00, ci.slotflags[1], 0x00, ci.slotflags[2:end]...]
