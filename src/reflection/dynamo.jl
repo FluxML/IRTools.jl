@@ -129,28 +129,29 @@ const caches = Dict()
 
 if VERSION >= v"1.10.0-DEV.873"
 
-function _generated_ex(world, source, ex)
-    stub = Core.GeneratedFunctionStub(identity, Core.svec(:methodinstance, :args), Core.svec())
-    stub(world, source, ex)
-end
-
 function dynamo_generator(world::UInt, source, self, args)
   cache = if haskey(caches, self)
     caches[self]
   else
     caches[self] = Dict()
   end
-  ci = dynamo(cache, world, self, args...)
-  ci isa Expr && return _generated_ex(world, source, ci)
-  return ci
+
+  ex = dynamo(cache, world, self, args...)
+  ex isa Core.CodeInfo && return ex
+
+  stub = Core.GeneratedFunctionStub(identity, Core.svec(:methodinstance, :args), Core.svec())
+  stub(world, source, ex)
 end
 
 function dynamo_lambda_generator(world::UInt, source, self, args)
   f = self.parameters[1].parameters[1]
   cache = caches[f]
-  ci = dynamo_lambda(cache, world, self)
-  ci isa Expr && return _generated_ex(world, source, ci)
-  return ci
+
+  ex = dynamo_lambda(cache, world, self)
+  ex isa Core.CodeInfo && return ex
+
+  stub = Core.GeneratedFunctionStub(identity, Core.svec(:methodinstance, :args), Core.svec())
+  stub(world, source, ex)
 end
 
 end
