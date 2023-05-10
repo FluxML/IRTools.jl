@@ -55,6 +55,9 @@ function slots!(ci::CodeInfo)
     function f(x)
       x isa Slot || return x
       haskey(ss, x) && return ss[x]
+      @static if VERSION >= v"1.10.0-DEV.870"
+        push!(ci.slottypes, x.type)
+      end
       push!(ci.slotnames, x.id)
       push!(ci.slotflags, 0x00)
       ss[x] = SlotNumber(length(ci.slotnames))
@@ -128,12 +131,27 @@ function splicearg!(ir::IR)
   return arg
 end
 
-@static if VERSION < v"1.8.0-DEV.267"
+@static if VERSION >= v"1.10.0-DEV.870"
+  function replace_code_newstyle!(ci, ir, _)
+    isnothing(ci.slottypes) && (ci.slottypes = Any[])
+    return Core.Compiler.replace_code_newstyle!(ci, ir)
+  end
+elseif VERSION < v"1.8.0-DEV.267"
   function replace_code_newstyle!(ci, ir, n_argtypes)
     return Core.Compiler.replace_code_newstyle!(ci, ir, n_argtypes-1)
   end
 else
   using Core.Compiler: replace_code_newstyle!
+end
+
+@static if VERSION >= v"1.10.0-DEV.870"
+  function get_staged(mi, world)
+    return Core.Compiler.get_staged(mi, world)
+  end
+else
+  function get_staged(mi, _)
+    return Core.Compiler.get_staged(mi)
+  end
 end
 
 function update!(ci::CodeInfo, ir::Core.Compiler.IRCode)

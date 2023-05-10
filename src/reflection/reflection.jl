@@ -29,6 +29,8 @@ end
 untvar(t::TypeVar) = t.ub
 untvar(x) = x
 
+const spoofed_world = Ref{Union{Nothing,UInt}}(nothing)
+
 """
     meta(Tuple{...})
 
@@ -40,13 +42,29 @@ See also [`@meta`](@ref).
     julia> IRTools.meta(Tuple{typeof(gcd),Int,Int})
     Metadata for gcd(a::T, b::T) where T<:Union{Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8} in Base at intfuncs.jl:31
 """
-function meta(T; types = T, world = worldcounter())
+function meta(T; types = T, world=nothing)
+  if world === nothing
+    # if the user didn't specify a world, use the current world,
+    # or a spoofed world if we're executing a dynamo
+    world = something(spoofed_world[], worldcounter())
+  end
   F = T.parameters[1]
   F == typeof(invoke) && return invoke_meta(T; world = world)
   F isa DataType && (F.name.module === Core.Compiler ||
                      F <: Core.Builtin ||
                      F <: Core.Builtin) && return nothing
-  _methods = Base._methods_by_ftype(T, -1, world)
+  min_world = Ref{UInt}(typemin(UInt))
+  max_world = Ref{UInt}(typemax(UInt))
+  has_ambig = Ptr{Int32}(C_NULL)  # don't care about ambiguous results
+  _methods = if VERSION >= v"1.7.0-DEV.1297"
+      Base._methods_by_ftype(T, #=mt=# nothing, #=lim=# -1,
+                             world, #=ambig=# false,
+                             min_world, max_world, has_ambig)
+  else
+      Base._methods_by_ftype(T, #=lim=# -1,
+                             world, #=ambig=# false,
+                             min_world, max_world, has_ambig)
+  end
   _methods === nothing && return nothing
   _methods isa Bool && return nothing
   length(_methods) == 0 && return nothing
@@ -54,16 +72,19 @@ function meta(T; types = T, world = worldcounter())
   sps = svec(map(untvar, sps)...)
   @static if VERSION >= v"1.2-"
     mi = Core.Compiler.specialize_method(method, types, sps)
-    ci = hasgenerator(mi) ? Core.Compiler.get_staged(mi) : Base.uncompressed_ast(method)
+    ci = hasgenerator(mi) ? get_staged(mi, world) : Base.uncompressed_ast(method)
   else
     mi = Core.Compiler.code_for_method(method, types, sps, world, false)
-    ci = hasgenerator(mi) ? Core.Compiler.get_staged(mi) : Base.uncompressed_ast(mi)
+    ci = hasgenerator(mi) ? get_staged(mi, world) : Base.uncompressed_ast(mi)
   end
   Base.Meta.partially_inline!(ci.code, [], method.sig, Any[sps...], 0, 0, :propagate)
   Meta(method, mi, ci, method.nargs, sps)
 end
 
 function invoke_tweaks!(ci::CodeInfo)
+  if VERSION >= v"1.10.0-DEV.870" && ci.slottypes !== nothing
+    ci.slottypes = [typeof(invoke), ci.slottypes[1], Type, ci.slottypes[2:end]...]
+  end
   ci.slotnames = [:invoke, ci.slotnames[1], :T, ci.slotnames[2:end]...]
   ci.slotflags = [0x00, ci.slotflags[1], 0x00, ci.slotflags[2:end]...]
   ci.code = map(ci.code) do x
@@ -85,17 +106,25 @@ function invoke_meta(T; world)
 end
 
 """
-    @meta f(args...)
+    @meta [world] f(args...)
 
 Convenience macro for retrieving metadata without writing a full type signature.
 
     julia> IRTools.@meta gcd(10, 5)
     Metadata for gcd(a::T, b::T) where T<:Union{Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8} in Base at intfuncs.jl:31
 """
-macro meta(ex)
-  isexpr(ex, :call) || error("@meta f(args...)")
-  f, args = ex.args[1], ex.args[2:end]
-  :(meta(typesof($(esc.((f, args...))...))))
+macro meta(ex...)
+  if length(ex) == 1
+    world = nothing
+    call = ex[1]
+  elseif length(ex) == 2
+    world, call = ex
+  else
+    error("@meta [world] f(args...)")
+  end
+  isexpr(call, :call) || error("@meta [world] f(args...)")
+  f, args = call.args[1], call.args[2:end]
+  :(meta(typesof($(esc.((f, args...))...)); world=$(esc(world))))
 end
 
 function code_ir(f, T)
