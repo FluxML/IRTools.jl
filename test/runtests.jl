@@ -22,6 +22,8 @@ end
   include("relooper.jl")
 end
 
-doctest(IRTools)
+if Base.GIT_VERSION_INFO.tagged_commit # skip doctests on nightly
+    doctest(IRTools)
+end
 
 end
