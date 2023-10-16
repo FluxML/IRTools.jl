@@ -64,7 +64,7 @@ function slots!(ci::CodeInfo)
     end
     if VERSION >= v"1.6.0-DEV.272"
       ci.code[i] = MacroTools.prewalk(ci.code[i]) do x
-        x isa Core.ReturnNode ? Core.ReturnNode(f(x.val)) :
+        x isa Core.ReturnNode ? (isdefined(x,:val) ? Core.ReturnNode(f(x.val)) : x) :
         x isa Core.GotoIfNot ? Core.GotoIfNot(f(x.cond), x.dest) :
         f(x)
       end

@@ -38,7 +38,11 @@ function IRCode(ir::IR)
         x = get(defs, br.args[1], br.args[1]) |> unvars
         push!(stmts, ReturnNode(x))
       elseif br == unreachable
-        push!(stmts, ReturnNode())
+        @static if VERSION >= v"1.10"
+          push!(stmts, ReturnNode())
+        else
+          push!(stmts, Expr(:call, GlobalRef(Core, :throw), "unreachable"))
+        end
       elseif br.condition == nothing
         push!(stmts, GotoNode(br.block))
       else

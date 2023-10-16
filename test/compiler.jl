@@ -1,6 +1,7 @@
 using IRTools, MacroTools, InteractiveUtils, Test
 using IRTools: @dynamo, IR, meta, isexpr, xcall, self, insertafter!, recurse!,
-  argument!, return!, func, var, functional
+  argument!, return!, block!, branch!, func, var, functional
+using InteractiveUtils: code_typed
 
 @dynamo roundtrip(a...) = IR(a...)
 
@@ -194,3 +195,19 @@ function f94(x)
 end
 @test f94(1) == 1
 @test passthrough(f94, 1) == 1
+
+@testset "unreachable" begin
+    # 1: (%1)
+    #   return nothing
+    # 2:
+    #   unreachable
+    ir = IR()
+    argument!(ir)
+    return!(ir, nothing)
+    block!(ir)
+    branch!(ir, 0)
+
+    func_ir = IRTools.func(ir)
+    @test (code_typed(func_ir, Tuple{typeof(func_ir)}) |> only
+           isa Pair{Core.CodeInfo,DataType})
+end
