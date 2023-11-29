@@ -29,6 +29,9 @@ function IRCode(ir::IR)
     for (v, st) in b
       defs[v] = Variable(length(stmts)+1)
       ex = varmap(x -> get(defs, x, x), st.expr) |> unvars
+      @static if isdefined(Core.IR, :EnterNode)
+        ex = isexpr(ex, :enter) ? Core.EnterNode(ex.args...) : ex
+      end
       push!(stmts, ex)
       push!(types, st.type)
       push!(lines, st.line)
@@ -43,7 +46,7 @@ function IRCode(ir::IR)
         else
           push!(stmts, Expr(:call, GlobalRef(Core, :throw), "unreachable"))
         end
-      elseif br.condition == nothing
+      elseif br.condition === nothing
         push!(stmts, GotoNode(br.block))
       else
         cond = get(defs, br.condition, br.condition) |> unvars
@@ -130,8 +133,15 @@ function IR(ci::CodeInfo, nargs::Integer; meta = nothing)
     ex = ci.code[i]
     if ex isa Core.NewvarNode
       continue
-    elseif isexpr(ex, :enter)
-      _rename[Core.SSAValue(i)] = push!(ir, Expr(:enter, findfirst(==(ex.args[1]), bs)+1))
+    elseif @static if isdefined(Core.IR, :EnterNode); ex isa Core.IR.EnterNode else isexpr(ex, :enter) end
+      catch_dest = @static if isdefined(Core.IR, :EnterNode)
+          ex.catch_dest
+      else
+          ex.args[1]
+      end
+    enter_expr = Expr(:enter, findfirst(==(catch_dest), bs)+1)
+      isdefined(ex, :scope) && push!(enter_expr.args, ex.scope)
+      _rename[Core.SSAValue(i)] = push!(ir, enter_expr)
     elseif ex isa GotoNode
       branch!(ir, findfirst(==(ex.label), bs)+1)
     elseif isgotoifnot(ex)

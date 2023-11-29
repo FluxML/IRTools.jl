@@ -211,3 +211,21 @@ end
     @test (code_typed(func_ir, Tuple{typeof(func_ir)}) |> only
            isa Pair{Core.CodeInfo,DataType})
 end
+
+function f_try_catch(x)
+    y = 0.
+    try
+        y = sqrt(x)
+    catch
+
+    end
+    y
+end
+
+@testset "try/catch" begin
+    ir = @code_ir f_try_catch(1.)
+    @test true
+    fir = func(ir)
+    @test fir(nothing,1.) == 1.
+    @test_broken fir(nothing,-1.) == 1.
+end

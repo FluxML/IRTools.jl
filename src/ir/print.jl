@@ -79,6 +79,9 @@ end
 
 function print_stmt(io::IO, ::Val{:enter}, ex)
   print(io, "try #$(ex.args[1])")
+  if length(ex.args) >= 2
+      print(io, " with scope ", ex.args[2])
+  end
 end
 
 function print_stmt(io::IO, ::Val{:leave}, ex)
