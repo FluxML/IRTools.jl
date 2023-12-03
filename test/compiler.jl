@@ -75,7 +75,7 @@ function err3(f)
 end
 
 @test passthrough(err3, () -> 2+2) == 4
-@test_broken passthrough(err3, () -> 0//0) == 1
+@test passthrough(err3, () -> 0//0) == 1
 
 @dynamo function mullify(a...)
   ir = IR(a...)
@@ -210,4 +210,21 @@ end
     func_ir = IRTools.func(ir)
     @test (code_typed(func_ir, Tuple{typeof(func_ir)}) |> only
            isa Pair{Core.CodeInfo,DataType})
+end
+
+function f_try_catch(x)
+    y = 0.
+    try
+        y = sqrt(x)
+    catch
+
+    end
+    y
+end
+
+@testset "try/catch" begin
+    ir = @code_ir f_try_catch(1.)
+    fir = func(ir)
+    @test fir(nothing,1.) == 1.
+    @test fir(nothing,-1.) == 0.
 end
