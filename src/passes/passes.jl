@@ -276,7 +276,7 @@ function ssa!(ir::IR)
   function catchbranch!(v, slot = nothing)
     for handler in handlers
       cbr = CatchBranch(copy(defs[current]), insertafter!(ir, v, Expr(:catch, handler)))
-      push!(get!(Vector{Variable}, catch_branches, handler), cbr)
+      push!(get!(Vector{CatchBranch}, catch_branches, handler), cbr)
     end
   end
   for b in blocks(ir)
