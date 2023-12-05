@@ -222,9 +222,85 @@ function f_try_catch(x)
     y
 end
 
+function f_try_catch2(x, cond)
+    local y
+    if cond
+        y = 2x
+    end
+
+    try
+        x = 3 * error()
+    catch
+    end
+
+    y
+end
+
+function f_try_catch3()
+    local x
+    try
+        error()
+    catch
+        x = 42
+    end
+    x
+end
+
+function f_try_catch4(x, cond)
+    local y
+    try
+        throw(x)
+    catch err
+        if cond
+            y = err + x
+        end
+    end
+    y
+end
+
+function f_try_catch5(x, cond)
+    local y
+    cond && (x = 2x)
+    try
+        y = x
+        cond && error()
+    catch
+        y = x + 1
+    end
+    y
+end
+
 @testset "try/catch" begin
     ir = @code_ir f_try_catch(1.)
     fir = func(ir)
-    @test fir(nothing,1.) == 1.
-    @test fir(nothing,-1.) == 0.
+    @test fir(nothing,1.) === 1.
+    @test fir(nothing,-1.) === 0.
+
+    ir = @code_ir f_try_catch2(1., false)
+    fir = func(ir)
+
+    # This should be @test_throws UndefVarError fir(nothing,42,false)
+    # See TODO in `IRTools.slots!`
+    @test fir(nothing, 42, false) === IRTools.undef
+    @test fir(nothing, 42, true) === 84
+
+    ir = @code_ir f_try_catch3()
+    @test any(ir) do (_, stmt)
+        IRTools.isexpr(stmt.expr, :catch) &&
+            length(stmt.expr.args) == 1
+    end
+    fir = func(ir)
+    @test fir(nothing) == 42
+
+    ir = @code_ir f_try_catch4(42, false)
+    fir = func(ir)
+    # This should be @test_throws UndefVarError fir(nothing,42,false)
+    # See TODO in `IRTools.slots!`
+    @test fir(nothing, 42, false) === IRTools.undef
+    @test fir(nothing, 42, true) === 84
+
+    ir = @code_ir f_try_catch5(1, false)
+    fir = func(ir)
+    @test fir(nothing, 3, false) === 3
+    @test fir(nothing, 3, true) === 7
 end
