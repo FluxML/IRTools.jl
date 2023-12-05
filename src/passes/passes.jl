@@ -257,8 +257,8 @@ function ssa!(ir::IR)
           end
 
           # get the slot definition from each predecessors of the block owning the catch 'branch'
-          x = defs[b.id][slot] = argument!(b; type=slot.type, insert=false)
-          push!(stmt.expr.args, x)
+          new_arg = defs[b.id][slot] = argument!(b; type=slot.type, insert=false)
+          push!(stmt.expr.args, new_arg)
           for pred in predecessors(b)
             if pred.id < current
               for br in branches(pred, b)
