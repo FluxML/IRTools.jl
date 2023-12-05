@@ -227,48 +227,49 @@ function ssa!(ir::IR)
     end
 
     if haskey(catch_branches, b.id)
-        # for each 'catch' branch to this catch block (catch block has `length(predecessors(b)) == 0`),
-        # we try to find the dominating definition for slot v.
-        # defs[block(ir, cbr.v).id] contains the defs at the end of
-        # the block, so we use the cached defs in catch_branches instead.
-        for cbr in catch_branches[b.id]
-            cbr_v = cbr.v
-            stmt = ir[cbr_v]
-            if haskey(cbr.defs, slot)
-                # Slot v was defined at catch branch
-                push!(stmt.expr.args, cbr.defs[slot])
-            else
-                # Find slot v definition from instruction cbr_v
-                b = block(ir, cbr_v)
-                if b.id == 1
-                    push!(stmt.expr.args, undef)
-                    continue
-                end
+      # for each 'catch' branch to this catch block (catch block has `length(predecessors(b)) == 0`),
+      # we try to find the dominating definition for slot v.
+      # defs[block(ir, cbr.v).id] contains the defs at the end of
+      # the block, so we use the cached defs in catch_branches instead.
+      for cbr in catch_branches[b.id]
+        cbr_v = cbr.v
+        stmt = ir[cbr_v]
+        if haskey(cbr.defs, slot)
+          # Slot v was defined at catch branch
+          push!(stmt.expr.args, cbr.defs[slot])
+        else
+          # Find slot v definition from instruction cbr_v
+          b = block(ir, cbr_v)
+          if b.id == 1
+            push!(stmt.expr.args, undef)
+            continue
+          end
 
-                # there is already a def for this slot as an argument to the block
-                # but which was added after the catch branch.
-                if haskey(defs[b.id], slot) && defs[b.id][slot] isa Variable
-                    bdef = defs[b.id][slot]
-                    (def_b, loc) = ir.defs[bdef.id]
-                    if def_b == b.id && loc < 0
-                        push!(stmt.expr.args, bdef)
-                        continue
-                    end
-                end
-
-                # get the slot definition from each predecessors of the block owning the catch 'branch'
-                defs[b.id][slot] = argument!(b; type=slot.type, insert=false)
-                for pred in predecessors(b)
-                    if pred.id < current
-                        for br in branches(pred, b)
-                          push!(br.args, reaching(pred, slot))
-                        end
-                    else
-                        push!(get!(todo[pred.id], b.id, Slot[]), slot)
-                    end
-                end
+          # there is already a def for this slot as an argument to the block
+          # but which was added after the catch branch.
+          if haskey(defs[b.id], slot) && defs[b.id][slot] isa Variable
+            bdef = defs[b.id][slot]
+            (def_b, loc) = ir.defs[bdef.id]
+            if def_b == b.id && loc < 0
+              push!(stmt.expr.args, bdef)
+              continue
             end
+          end
+
+          # get the slot definition from each predecessors of the block owning the catch 'branch'
+          x = defs[b.id][slot] = argument!(b; type=slot.type, insert=false)
+          push!(stmt.expr.args, x)
+          for pred in predecessors(b)
+            if pred.id < current
+              for br in branches(pred, b)
+                push!(br.args, reaching(pred, slot))
+              end
+            else
+              push!(get!(todo[pred.id], b.id, Slot[]), slot)
+            end
+          end
         end
+      end
     end
 
     return x

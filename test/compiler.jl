@@ -270,6 +270,42 @@ function f_try_catch5(x, cond)
     y
 end
 
+function f_try_catch6(cond, y)
+    x = 1
+
+    if cond
+        y = 10y
+    else
+        y = 10y
+    end
+
+    try
+        cond && error()
+    catch
+        y = 2x
+    end
+
+    y+x
+end
+
+function f_try_catch7()
+  local x = 1.
+
+  for _ in 1:10
+
+      try
+          x = sqrt(x)
+          x -= 1.
+      catch
+          x = -x
+      end
+
+      x = x ^ 2
+  end
+
+  x
+end
+
 @testset "try/catch" begin
     ir = @code_ir f_try_catch(1.)
     fir = func(ir)
@@ -287,7 +323,7 @@ end
     ir = @code_ir f_try_catch3()
     @test any(ir) do (_, stmt)
         IRTools.isexpr(stmt.expr, :catch) &&
-            length(stmt.expr.args) == 1
+          length(stmt.expr.args) == 1
     end
     fir = func(ir)
     @test fir(nothing) == 42
@@ -303,4 +339,12 @@ end
     fir = func(ir)
     @test fir(nothing, 3, false) === 3
     @test fir(nothing, 3, true) === 7
+
+    ir = @code_ir f_try_catch6(true, 1)
+    fir = func(ir)
+    @test fir(nothing, true, 1) === 3
+    @test fir(nothing, false, 1) === 11
+
+    ir = @code_ir f_try_catch7()
+    @test func(ir)(nothing) === 1.
 end
