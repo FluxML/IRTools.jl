@@ -317,12 +317,18 @@ end
 
     # This should be @test_throws UndefVarError fir(nothing,42,false)
     # See TODO in `IRTools.slots!`
+    @test try
+        fir(nothing,42,false)
+        false
+    catch e
+        e isa UndefVarError
+    end broken=true
     @test fir(nothing, 42, false) === IRTools.undef
     @test fir(nothing, 42, true) === 84
 
     ir = @code_ir f_try_catch3()
-    @test any(ir) do (_, stmt)
-        IRTools.isexpr(stmt.expr, :catch) &&
+    @test all(ir) do (_, stmt)
+        !IRTools.isexpr(stmt.expr, :catch) ||
           length(stmt.expr.args) == 1
     end
     fir = func(ir)
@@ -331,7 +337,12 @@ end
     ir = @code_ir f_try_catch4(42, false)
     fir = func(ir)
     # This should be @test_throws UndefVarError fir(nothing,42,false)
-    # See TODO in `IRTools.slots!`
+    @test try
+        fir(nothing, 42, false)
+        false
+    catch e
+        e isa UndefVarError
+    end broken=true
     @test fir(nothing, 42, false) === IRTools.undef
     @test fir(nothing, 42, true) === 84
 
