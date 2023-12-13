@@ -42,7 +42,12 @@ end
 let
   ir1 = @code_ir foo(1, 2)
   ir2 = @code_ir bar(1, 2)
-  ir = IRTools.inline(ir1, IRTools.var(4), ir2)
+  inline_at = findfirst(ir1) do (_, stmt)
+    IRTools.isexpr(stmt.expr, :call) &&
+      stmt.expr.args[1] == GlobalRef(@__MODULE__, :bar)
+  end
+  @test inline_at !== nothing
+  ir = IRTools.inline(ir1, inline_at, ir2)
   f = IRTools.func(ir)
   @test f(nothing, 2, 3) == 3
   @test f(nothing, 3, 2) == 3
@@ -66,7 +71,12 @@ end
 let
   ir = @code_ir foo2(1)
   ir2 = @code_ir foo1(1)
-  ir3 = IRTools.inline(ir, IRTools.var(4), ir2)
+  inline_at = findfirst(ir) do (_, stmt)
+    IRTools.isexpr(stmt.expr, :call) &&
+      stmt.expr.args[1] == GlobalRef(@__MODULE__, :foo1)
+  end
+  @test inline_at !== nothing
+  ir3 = IRTools.inline(ir, inline_at, ir2)
   @test IRTools.func(ir3)(nothing, 2) == 12
   @test IRTools.func(ir3)(nothing, 101) == 101
 end
@@ -87,7 +97,12 @@ end
 let
   ir = @code_ir foo2(1)
   ir2 = @code_ir foo1(1)
-  ir3 = IRTools.inline(ir, IRTools.var(3), ir2)
+  inline_at = findfirst(ir) do (_, stmt)
+    IRTools.isexpr(stmt.expr, :call) &&
+      stmt.expr.args[1] == GlobalRef(@__MODULE__, :foo1)
+  end
+  @test inline_at !== nothing
+  ir3 = IRTools.inline(ir, inline_at, ir2)
   @test IRTools.func(ir3)(nothing, 2) == foo2(2)
   @test IRTools.func(ir3)(nothing, -2) == foo2(-2)
 end
