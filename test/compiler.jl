@@ -75,7 +75,7 @@ function err3(f)
 end
 
 @test passthrough(err3, () -> 2+2) == 4
-@test_broken passthrough(err3, () -> 0//0) == 1
+@test passthrough(err3, () -> 0//0) == 1
 
 @dynamo function mullify(a...)
   ir = IR(a...)
@@ -222,10 +222,140 @@ function f_try_catch(x)
     y
 end
 
+function f_try_catch2(x, cond)
+    local y
+    if cond
+        y = 2x
+    end
+
+    try
+        x = 3 * error()
+    catch
+    end
+
+    y
+end
+
+function f_try_catch3()
+    local x
+    try
+        error()
+    catch
+        x = 42
+    end
+    x
+end
+
+function f_try_catch4(x, cond)
+    local y
+    try
+        throw(x)
+    catch err
+        if cond
+            y = err + x
+        end
+    end
+    y
+end
+
+function f_try_catch5(x, cond)
+    local y
+    cond && (x = 2x)
+    try
+        y = x
+        cond && error()
+    catch
+        y = x + 1
+    end
+    y
+end
+
+function f_try_catch6(cond, y)
+    x = 1
+
+    if cond
+        y = 10y
+    else
+        y = 10y
+    end
+
+    try
+        cond && error()
+    catch
+        y = 2x
+    end
+
+    y+x
+end
+
+function f_try_catch7()
+  local x = 1.
+
+  for _ in 1:10
+
+      try
+          x = sqrt(x)
+          x -= 1.
+      catch
+          x = -x
+      end
+
+      x = x ^ 2
+  end
+
+  x
+end
+
 @testset "try/catch" begin
     ir = @code_ir f_try_catch(1.)
-    @test true
     fir = func(ir)
-    @test fir(nothing,1.) == 1.
-    @test_broken fir(nothing,-1.) == 1.
+    @test fir(nothing,1.) === 1.
+    @test fir(nothing,-1.) === 0.
+
+    ir = @code_ir f_try_catch2(1., false)
+    fir = func(ir)
+
+    # This should be @test_throws UndefVarError fir(nothing,42,false)
+    # See TODO in `IRTools.slots!`
+    @test_broken try
+        fir(nothing,42,false)
+        false
+    catch e
+        e isa UndefVarError
+    end
+    @test fir(nothing, 42, false) === IRTools.undef
+    @test fir(nothing, 42, true) === 84
+
+    ir = @code_ir f_try_catch3()
+    @test all(ir) do (_, stmt)
+        !IRTools.isexpr(stmt.expr, :catch) ||
+          length(stmt.expr.args) == 1
+    end
+    fir = func(ir)
+    @test fir(nothing) == 42
+
+    ir = @code_ir f_try_catch4(42, false)
+    fir = func(ir)
+    # This should be @test_throws UndefVarError fir(nothing,42,false)
+    @test_broken try
+        fir(nothing, 42, false)
+        false
+    catch e
+        e isa UndefVarError
+    end
+    @test fir(nothing, 42, false) === IRTools.undef
+    @test fir(nothing, 42, true) === 84
+
+    ir = @code_ir f_try_catch5(1, false)
+    fir = func(ir)
+    @test fir(nothing, 3, false) === 3
+    @test fir(nothing, 3, true) === 7
+
+    ir = @code_ir f_try_catch6(true, 1)
+    fir = func(ir)
+    @test fir(nothing, true, 1) === 3
+    @test fir(nothing, false, 1) === 11
+
+    ir = @code_ir f_try_catch7()
+    @test func(ir)(nothing) === 1.
 end
