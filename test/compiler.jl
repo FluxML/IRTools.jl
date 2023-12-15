@@ -306,6 +306,19 @@ function f_try_catch7()
   x
 end
 
+function f_try_catch8(x)
+    local z = x
+    try
+        z = z + sqrt(x)
+        z = 1 - log(z)
+        z = log(z)
+    catch
+        z = abs(z)
+    finally
+        return z
+    end
+end
+
 @testset "try/catch" begin
     ir = @code_ir f_try_catch(1.)
     fir = func(ir)
@@ -358,4 +371,9 @@ end
 
     ir = @code_ir f_try_catch7()
     @test func(ir)(nothing) === 1.
+
+    ir = @code_ir f_try_catch8(1.)
+    fir = func(ir)
+    @test fir(nothing, 1.) == log(1. - log(2.))
+    @test fir(nothing, -1.) == 1.
 end
