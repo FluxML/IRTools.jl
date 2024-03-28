@@ -1,4 +1,4 @@
-using Core.Compiler: LineInfoNode
+using Base.IRShow: LineInfoNode
 import Base: push!, insert!, getindex, setindex!, iterate, length
 
 # We have our own versions of these in order to

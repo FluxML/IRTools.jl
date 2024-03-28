@@ -8,14 +8,14 @@ function fixup_blocks!(ir, n)
   end
 end
 
-function inlinehere!(ir, source, args...)
+function inlinehere!(ir, line, source, args...)
   source = merge_returns!(copy(source)) # TODO preserve type info
   offset = length(blocks(ir.to))-1
   env = Dict()
   retvalue = nothing
   rename(x::Variable) = env[x]
   rename(x::Expr) = Expr(x.head, rename.(x.args)...)
-  rename(x::Statement) = stmt(x, expr = rename(x.expr))
+  rename(x::Statement) = stmt(x; expr=rename(x.expr), line=line)
   rename(x) = x
   for (name, arg) in zip(arguments(source), args)
     env[name] = arg
@@ -78,9 +78,12 @@ function inline(ir::IR, loc::Variable, source::IR)
     if v === loc
       startblock = length(blocks(pr.to))
       fixup_blocks!(pr.to, length(blocks(source)))
+      # TODO: when inlining, we set all statements from source
+      # ....  at the line from loc. Ideally, we use the `inlined_at` field.
+      line = ir[loc].line
       ex = ir[loc].expr
       delete!(pr, v)
-      v′ = inlinehere!(pr, source, ex.args...)
+      v′ = inlinehere!(pr, line, source, ex.args...)
       substitute!(pr, v, substitute(pr, v′))
     end
   end

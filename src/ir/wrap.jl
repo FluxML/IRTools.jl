@@ -14,6 +14,13 @@ end
 
 unvars(ex) = prewalk(x -> x isa Variable ? SSAValue(x.id) : x, ex)
 
+
+@static if VERSION ≥ v"1.12.0-DEV.173"
+  addline!(lines, li) = push!(lines, li, Int32(0), Int32(0))
+else
+  addline!(lines, li) = push!(lines, li)
+end
+
 function IRCode(ir::IR)
   defs = Dict()
   stmts, types, lines = [], [], Int32[]
@@ -34,7 +41,7 @@ function IRCode(ir::IR)
       end
       push!(stmts, ex)
       push!(types, st.type)
-      push!(lines, st.line)
+      addline!(lines, st.line)
     end
     for br in BasicBlock(b).branches
       if IRTools.isreturn(br)
@@ -52,7 +59,7 @@ function IRCode(ir::IR)
         cond = get(defs, br.condition, br.condition) |> unvars
         push!(stmts, GotoIfNot(cond, br.block))
       end
-      push!(types, Any); push!(lines, 0)
+      push!(types, Any); addline!(lines, Int32(0))
     end
     push!(index, length(stmts)+1)
   end
@@ -61,7 +68,8 @@ function IRCode(ir::IR)
   preds = map.(x -> x.id, IRTools.predecessors.(IRTools.blocks(ir)))
   bs = Core.Compiler.BasicBlock.(ranges, preds, succs)
   cfg = CFG(bs, index)
-  flags = [0x00 for _ in stmts]
+
+  flags = UInt32[0x00 for _ in stmts]
   sps = VERSION > v"1.2-" ? (VERSION >= v"1.10.0-DEV.552" ? Core.Compiler.VarState[] : []) : Core.svec()
 
   @static if VERSION > v"1.6-"
@@ -72,7 +80,36 @@ function IRCode(ir::IR)
     end
     stmts = InstructionStream(stmts, types, stmtinfo, lines, flags)
     meta = @static VERSION < v"1.9.0-DEV.472" ? [] : Expr[]
-    IRCode(stmts, cfg, ir.lines, ir.blocks[1].argtypes, meta, sps)
+    @static if VERSION ≥ v"1.12.0-DEV.173"
+      nlocs = length(types)
+      codelocs = fill(Int32(0), 3nlocs)
+
+      if !isempty(ir.lines)
+        LI = first(ir.lines)
+        topfile, topline = LI.file, LI.line
+
+        for i in 1:nlocs
+          lineidx = lines[3i - 2]
+          if lineidx == 0
+            continue
+          end
+          # TODO: support inlining, see passes/inline.jl
+          @assert LI.file === topfile && LI.inlined_at == 0
+          LI = ir.lines[lineidx]
+          codelocs[3i - 2] = LI.line
+        end
+      else
+        topline = Int32(1)
+      end
+      codelocs = @ccall jl_compress_codelocs(topline::Int32, codelocs::Any, nlocs::Csize_t)::Any
+
+      debuginfo = Core.Compiler.DebugInfoStream(lines)
+      debuginfo.def = ir.meta isa Meta ? ir.meta.instance : :var"n/a"
+      debuginfo.linetable = Core.DebugInfo(debuginfo.def, nothing, Core.svec(), codelocs)
+      IRCode(stmts, cfg, debuginfo, ir.blocks[1].argtypes, meta, sps)
+    else
+      IRCode(stmts, cfg, ir.lines, ir.blocks[1].argtypes, meta, sps)
+    end
   else
     IRCode(stmts, types, lines, flags, cfg, ir.lines, ir.blocks[1].argtypes, [], sps)
   end
@@ -118,7 +155,26 @@ slotname(ci, s) = Symbol(:_, s.id)
 
 function IR(ci::CodeInfo, nargs::Integer; meta = nothing)
   bs = blockstarts(ci)
-  ir = IR(Core.LineInfoNode[ci.linetable...], meta = meta)
+  codelocs, linetable = @static if VERSION ≥ v"1.12.0-DEV.173"
+    def = isnothing(meta) ? :var"n/a" : meta.instance
+    N = length(ci.code)
+    codelocs = fill(0, N)
+    linetable = Base.IRShow.LineInfoNode[]
+
+    # NOTE: we could be faster about decoding here and support inlining?
+    for pc in 1:N
+      LI = Base.IRShow.buildLineInfoNode(ci.debuginfo, def, pc)
+      if !isempty(LI)
+        push!(linetable, first(LI))
+        codelocs[pc] = length(linetable)
+      end
+    end
+
+    codelocs, linetable
+  else
+    ci.codelocs, Core.LineInfoNode[ci.linetable...]
+  end
+  ir = IR(linetable, meta = meta)
   _rename = Dict()
   rename(ex) = prewalk(ex) do x
     haskey(_rename, x) && return _rename[x]
@@ -151,7 +207,7 @@ function IR(ci::CodeInfo, nargs::Integer; meta = nothing)
     elseif isreturn(ex)
       return!(ir, rename(retval(ex)))
     else
-      _rename[Core.SSAValue(i)] = push!(ir, IRTools.stmt(rename(ex), line = ci.codelocs[i]))
+      _rename[Core.SSAValue(i)] = push!(ir, IRTools.stmt(rename(ex), line = codelocs[i]))
     end
   end
   return ir
