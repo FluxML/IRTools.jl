@@ -4,7 +4,7 @@ using MacroTools: isexpr, prewalk
 
 using ..Inner, ..IRTools
 import ..Inner: IR, Variable, Statement, Branch, BasicBlock, Meta, block!,
-  unreachable, varmap, argument!, branch!, return!
+  unreachable, varmap, argument!, branch!, return!, LineInfoNode
 import Core: CodeInfo, GotoNode, SSAValue
 import Core.Compiler: IRCode, CFG, GotoIfNot, ReturnNode, StmtRange
 
@@ -12,14 +12,19 @@ import Core.Compiler: IRCode, CFG, GotoIfNot, ReturnNode, StmtRange
   import Core.Compiler: InstructionStream
 end
 
-unvars(ex) = prewalk(x -> x isa Variable ? SSAValue(x.id) : x, ex)
-
+@static if VERSION ≥ v"1.9.0-DEV.502"
+  const LineType = Int32
+else
+  const LineType = Int
+end
 
 @static if VERSION ≥ v"1.12.0-DEV.173"
   addline!(lines, li) = push!(lines, li, Int32(0), Int32(0))
 else
   addline!(lines, li) = push!(lines, li)
 end
+
+unvars(ex) = prewalk(x -> x isa Variable ? SSAValue(x.id) : x, ex)
 
 function IRCode(ir::IR)
   defs = Dict()
@@ -108,7 +113,10 @@ function IRCode(ir::IR)
       debuginfo.linetable = Core.DebugInfo(debuginfo.def, nothing, Core.svec(), codelocs)
       IRCode(stmts, cfg, debuginfo, ir.blocks[1].argtypes, meta, sps)
     else
-      IRCode(stmts, cfg, ir.lines, ir.blocks[1].argtypes, meta, sps)
+      mod, meth = ir.meta isa Meta ? (ir.meta.method.module, ir.meta.method) : (Main, nothing)
+      linetable = map(li -> Core.LineInfoNode(mod, meth, li.file, LineType(li.line), LineType(li.inlined_at)),
+                      ir.lines)
+      IRCode(stmts, cfg, linetable, ir.blocks[1].argtypes, meta, sps)
     end
   else
     IRCode(stmts, types, lines, flags, cfg, ir.lines, ir.blocks[1].argtypes, [], sps)
@@ -159,20 +167,21 @@ function IR(ci::CodeInfo, nargs::Integer; meta = nothing)
     def = isnothing(meta) ? :var"n/a" : meta.instance
     N = length(ci.code)
     codelocs = fill(0, N)
-    linetable = Base.IRShow.LineInfoNode[]
+    linetable = LineInfoNode[]
 
     # NOTE: we could be faster about decoding here and support inlining?
     for pc in 1:N
       LI = Base.IRShow.buildLineInfoNode(ci.debuginfo, def, pc)
       if !isempty(LI)
-        push!(linetable, first(LI))
+        linode = first(LI) # ::Base.IRShow.LineInfoNode
+        push!(linetable, LineInfoNode(linode.file, linode.line))
         codelocs[pc] = length(linetable)
       end
     end
 
     codelocs, linetable
   else
-    ci.codelocs, Core.LineInfoNode[ci.linetable...]
+    ci.codelocs, map(li -> LineInfoNode(li.file, li.line), ci.linetable)
   end
   ir = IR(linetable, meta = meta)
   _rename = Dict()
