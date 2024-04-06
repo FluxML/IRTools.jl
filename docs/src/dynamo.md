@@ -87,8 +87,19 @@ julia> @code_ir roundtrip mul(1, 2)
 
 Now we can recreate our `foo` macro. It's a little more verbose since simple symbols like `*` are resolved to `GlobalRef`s in lowered code, but it's broadly the same as our macro.
 
-```jldoctest main
-julia> using MacroTools
+```@meta
+DocTestSetup = quote
+    using IRTools
+    using IRTools: @dynamo, IR
+
+    mul(a, b) = a * b
+end
+```
+
+```jldoctest main2
+julia> using MacroTools, IRTools
+
+julia> using IRTools: @dynamo, IR
 
 julia> @dynamo function foo(a...)
          ir = IR(a...)
@@ -100,9 +111,13 @@ julia> @dynamo function foo(a...)
        end
 ```
 
+```@meta
+DocTestSetup = nothing
+```
+
 It behaves identically, too.
 
-```jldoctest main
+```jldoctest main2
 julia> foo() do
          10*5
        end
@@ -122,7 +137,7 @@ A key difference between macros and dynamos is that dynamos get passed *function
 
 So what if `foo` actually inserted calls to itself when modifying a function? In other words, `prod([1, 2, 3])` would become `foo(prod, [1, 2, 3])`, and so on for each call inside a function. This lets us get the "dynamic extent" property that we talked about earlier.
 
-```jldoctest main
+```jldoctest main2
 julia> using IRTools: xcall
 
 julia> @dynamo function foo2(a...)
@@ -161,7 +176,7 @@ julia> @code_ir foo2 mul_wrapped(5, 10)
 
 And that it works as expected:
 
-```jldoctest main
+```jldoctest main2
 julia> foo() do # Does not work (since there is no literal `*` here)
          mul(5, 10)
        end
@@ -185,6 +200,8 @@ This, we have rewritten the `prod` function to actually calculate `sum`, by *int
 We can make our `foo2` dynamo simpler in a couple of ways. Firstly, IRTools provides a built-in utility `recurse!` which makes it easy to recurse into code.
 
 ```jldoctest main
+julia> using MacroTools
+
 julia> using IRTools: recurse!
 
 julia> @dynamo function foo2(a...)
