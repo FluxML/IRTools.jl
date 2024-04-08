@@ -14,7 +14,7 @@ Note that before even attempting to understand IRTools, you should have a good h
 
 It's easiest to understand the IRTools IR by seeing some examples. We provide the macro `@code_ir` which behaves much like `@code_lowered`.
 
-```jldoctest main
+```jldoctest
 julia> using IRTools
 
 julia> f(x) = x+x
@@ -30,7 +30,9 @@ First things first. All variables are numbered (`%1`, `%2`, `%3` ...). IR will u
 
 The main reason that there are a lot of intermediates is that, in IR, we only allow one function call per line. You can see how a nested Julia expression becomes a sequence of single instructions, kind of like an assembly language.
 
-```jldoctest main
+```jldoctest
+julia> using IRTools
+
 julia> f(x) = 3x*x + 2x + 1
 f (generic function with 1 method)
 
@@ -51,7 +53,9 @@ Beyond that, this is essentially just very verbosely-written Julia code.
 
 The most significant difference between `IR` and `Expr` is how control flow is handled. There are no such thing as nested if statements, while loops and so on in IR, only *branches*.
 
-```jldoctest main
+```jldoctest
+julia> using IRTools
+
 julia> f(x) = x > 0 ? x : 0
 f (generic function with 1 method)
 
@@ -70,7 +74,9 @@ IR is composed of a series of *basic blocks* that jump between each other like t
 
 Here's a more interesting example.
 
-```jldoctest main
+```jldoctest
+julia> using IRTools
+
 julia> function f(x)
          if x < 0
            x = -x
@@ -97,7 +103,9 @@ Why not just write this as `%2 = -%2`? It's important to understand that variabl
 
 Loops work this way too: they are visible in the IR by branches that jump backwards, i.e. the `br 2` here. Variables that were modified inside the loop in the original code are explicitly passed between blocks.
 
-```jldoctest main
+```jldoctest envpow
+julia> using IRTools
+
 julia> function pow(x, n)
          r = 1
          while n > 0
@@ -129,7 +137,7 @@ julia> @code_ir pow(1, 1)
 
 It's easy to get started by creating an empty fragment of IR.
 
-```jldoctest main
+```jldoctest ir_example
 julia> using IRTools: IR, var, argument!, xcall
 
 julia> ir = IR()
@@ -138,7 +146,7 @@ julia> ir = IR()
 
 We can push new statements into the IR. `push!` returns a variable name that we can reuse later on.
 
-```jldoctest main
+```jldoctest ir_example
 julia> x = argument!(ir)
 %1
 
@@ -152,7 +160,7 @@ julia> ir
 
 The IR can be viewed as a mapping from variables to statements, and indexing and iteration are consistent with that.
 
-```julia
+```julia ir_example
 julia> ir[var(2)]
 IRTools.Statement(:(%1 * %1), Any, 0)
 
@@ -167,7 +175,7 @@ There are a few other functions that do obvious things: `pushfirst!`, `insert!`,
 
 In most cases you won't build IR from scratch, but will start from an existing function and modify its IR.
 
-```jldoctest main
+```jldoctest envpow
 julia> ir = @code_ir pow(1, 1)
 1: (%1, %2, %3)
   br 2 (%3, 1)
@@ -187,7 +195,7 @@ julia> ir = @code_ir pow(1, 1)
 
 You can work with a block at a time with `block(ir, n)` (all of them with `blocks(ir)`). Blocks similarly support functions like `push!`.
 
-```jldoctest main
+```jldoctest envpow
 julia> using IRTools: block
 
 julia> block(ir, 2)
