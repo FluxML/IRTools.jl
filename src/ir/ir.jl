@@ -1,9 +1,21 @@
-using Core.Compiler: LineInfoNode
 import Base: push!, insert!, getindex, setindex!, iterate, length
 
 # We have our own versions of these in order to
 # (1) be more robust to Base IR changes, and
 # (2) make sure that mistakes/bugs do not cause bad LLVM IR.
+
+"""
+    LineInfoNode(file::Symbol, line::Int32, [inlined_at::Int32])
+
+Represents line information about a statement; Inlined statements has a non-zero
+`inlined_at` which represents the "parent" location in the linetable array.
+"""
+struct LineInfoNode
+  file::Symbol
+  line::Int32
+  inlined_at::Int32
+end
+LineInfoNode(file, line) = LineInfoNode(file, line, Int32(0))
 
 struct Undefined end
 const undef = Undefined()

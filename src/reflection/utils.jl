@@ -156,7 +156,9 @@ end
 
 function update!(ci::CodeInfo, ir::Core.Compiler.IRCode)
   replace_code_newstyle!(ci, ir, length(ir.argtypes))
-  ci.inferred = false
+  @static if VERSION < v"1.12.0-DEV.15"
+    ci.inferred = false
+  end
   ci.ssavaluetypes = length(ci.code)
   slots!(ci)
   fill!(ci.slotflags, 0)
