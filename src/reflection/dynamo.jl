@@ -100,6 +100,10 @@ function dynamo(cache, world, f, args...)
     m === nothing && error("Error looking up metadata for $f")
     m.code.method_for_inference_limit_heuristics = nothing
   end
+  if isdefined(Base, :__has_internal_change) && Base.__has_internal_change(v"1.12-alpha", :codeinfonargs)
+    m.code.nargs = 2
+    m.code.isva = true
+  end
   _self = splicearg!(ir)
   prewalk!(x -> x === self ? _self : x, ir)
   return update!(m.code, ir)
@@ -112,6 +116,10 @@ function dynamo_lambda(cache, world, f::Type{<:Lambda{S,I}}) where {S,I}
   closureargs!(ir)
   m = @meta world dummy(1)
   m.code.method_for_inference_limit_heuristics = nothing
+  if isdefined(Base, :__has_internal_change) && Base.__has_internal_change(v"1.12-alpha", :codeinfonargs)
+    m.code.nargs = 2
+    m.code.isva = true
+  end
   return update!(m.code, ir)
 end
 

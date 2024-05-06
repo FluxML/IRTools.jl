@@ -15,6 +15,10 @@ function build_codeinfo(ir::IR)
     push!(ci.slotnames, Symbol(""))
     push!(ci.slotflags, 0)
   end
+  if isdefined(Base, :__has_internal_change) && Base.__has_internal_change(v"1.12-alpha", :codeinfonargs)
+    ci.nargs = length(arguments(ir)) + 1
+    ci.isva = false
+  end
   argument!(ir, at = 1)
   update!(ci, ir)
 end
