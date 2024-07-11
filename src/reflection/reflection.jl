@@ -89,7 +89,13 @@ function invoke_tweaks!(ci::CodeInfo)
   ci.slotflags = [0x00, ci.slotflags[1], 0x00, ci.slotflags[2:end]...]
   ci.code = map(ci.code) do x
     prewalk(x) do x
-      x isa SlotNumber ? SlotNumber(x.id == 1 ? 2 : x.id+2) : x
+      if x isa SlotNumber
+        SlotNumber(x.id == 1 ? 2 : x.id+2)
+      elseif x isa Core.ReturnNode && x.val isa SlotNumber
+        Core.ReturnNode(SlotNumber(x.val.id == 1 ? 2 : x.val.id+2))
+      else
+        x
+      end
     end
   end
 end
