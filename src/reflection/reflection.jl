@@ -91,7 +91,7 @@ function invoke_tweaks!(ci::CodeInfo)
     prewalk(x) do x
       if x isa SlotNumber
         SlotNumber(x.id == 1 ? 2 : x.id+2)
-      elseif x isa Core.ReturnNode && x.val isa SlotNumber
+      elseif x isa Core.ReturnNode && isdefined(x, :val) && x.val isa SlotNumber
         Core.ReturnNode(SlotNumber(x.val.id == 1 ? 2 : x.val.id+2))
       else
         x
