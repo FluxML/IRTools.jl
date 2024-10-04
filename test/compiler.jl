@@ -377,3 +377,26 @@ end
     @test fir(nothing, 1.) == log(1. - log(2.))
     @test fir(nothing, -1.) == 1.
 end
+
+@test "functional" begin
+    relu(x) = (y = x > 0 ? x : 0)
+    ir = @code_ir relu(1)
+
+    @test_nowarn functional(ir)
+end
+
+@testset "while break" begin
+    function while_loop()
+        while true break end
+    end
+    tmp_ir = @code_ir(while_loop())
+    @test_nowarn functional(tmp_ir)
+
+    function while_loop2()
+        while true l == 0 && break end
+    end
+    tmp_ir = @code_ir(while_loop2())
+    @test_nowarn functional(tmp_ir)
+end
+
+

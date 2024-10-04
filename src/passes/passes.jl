@@ -51,7 +51,11 @@ function usecounts(ir::IR)
 end
 
 function dominators(cfg; entry = 1)
+  blocks = reachable_blocks(cfg, entry)
   preds = cfg'
+  for i in 1:length(cfg.graph)
+      preds.graph[i] = filter(a -> a in blocks, preds[i])
+  end
   blocks = [1:length(cfg.graph);]
   doms = Dict(b => Set(blocks) for b in blocks)
   while !isempty(blocks)
@@ -72,8 +76,9 @@ function dominators(cfg; entry = 1)
 end
 
 function domtree(cfg::CFG; entry = 1)
+  blocks = sort(reachable_blocks(cfg, entry))
   doms = dominators(cfg, entry = entry)
-  doms = Dict(b => filter(c -> b != c && b in doms[c], 1:length(cfg)) for b in 1:length(cfg))
+  doms = Dict(b => filter(c -> b != c && b in doms[c], blocks) for b in blocks)
   children(b) = filter(c -> !(c in union(map(c -> doms[c], doms[b])...)), doms[b])
   tree(b) = Pair{Int,Any}(b,tree.(children(b)))
   tree(entry)
@@ -308,10 +313,10 @@ function ssa!(ir::IR)
   return ir
 end
 
-function reachable_blocks(cfg::CFG)
+function reachable_blocks(cfg::CFG, entry = 1)
   bs = Int[]
   reaches(b) = b in bs || (push!(bs, b); reaches.(cfg[b]))
-  reaches(1)
+  reaches(entry)
   return bs
 end
 
