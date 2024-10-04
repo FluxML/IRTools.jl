@@ -378,7 +378,7 @@ end
     @test fir(nothing, -1.) == 1.
 end
 
-@test "functional" begin
+@testset "functional" begin
     relu(x) = (y = x > 0 ? x : 0)
     ir = @code_ir relu(1)
 
