@@ -49,8 +49,8 @@ let
   @test inline_at !== nothing
   ir = IRTools.inline(ir1, inline_at, ir2)
   f = IRTools.func(ir)
-  @test f(nothing, 2, 3) == 3
-  @test f(nothing, 3, 2) == 3
+  @test invokelatest(f, nothing, 2, 3) == 3
+  @test invokelatest(f, nothing, 3, 2) == 3
 end
 
 function foo1(x)
@@ -77,8 +77,8 @@ let
   end
   @test inline_at !== nothing
   ir3 = IRTools.inline(ir, inline_at, ir2)
-  @test IRTools.func(ir3)(nothing, 2) == 12
-  @test IRTools.func(ir3)(nothing, 101) == 101
+  @test invokelatest(IRTools.func(ir3), nothing, 2) == 12
+  @test invokelatest(IRTools.func(ir3), nothing, 101) == 101
 end
 
 
@@ -103,6 +103,6 @@ let
   end
   @test inline_at !== nothing
   ir3 = IRTools.inline(ir, inline_at, ir2)
-  @test IRTools.func(ir3)(nothing, 2) == foo2(2)
-  @test IRTools.func(ir3)(nothing, -2) == foo2(-2)
+  @test invokelatest(IRTools.func(ir3), nothing, 2) == foo2(2)
+  @test invokelatest(IRTools.func(ir3), nothing, -2) == foo2(-2)
 end

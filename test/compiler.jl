@@ -370,7 +370,8 @@ end
     @test fir(nothing, false, 1) === 11
 
     ir = @code_ir f_try_catch7()
-    @test func(ir)(nothing) === 1.
+    fir = func(ir)
+    @test fir(nothing) === 1.
 
     ir = @code_ir f_try_catch8(1.)
     fir = func(ir)
