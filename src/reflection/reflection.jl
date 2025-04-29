@@ -1,6 +1,6 @@
 using Core: CodeInfo, Typeof
 using Core.Compiler: InferenceState, MethodInstance, svec
-using InteractiveUtils: typesof
+using Base: typesof
 
 if isdefined(Base, :hasgenerator) # VERSION >= v"1.7.0"
   hasgenerator(x) = Base.hasgenerator(x)
