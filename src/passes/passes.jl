@@ -41,6 +41,97 @@ function usages(b::Block)
   return uses
 end
 
+usages(st::Statement) = usages(st.expr)
+usages(ex) = Set{Variable}()
+
+function usages(ex::Expr)
+  uses = Set{Variable}()
+  for x in ex.args
+    x isa Variable && push!(uses, x)
+  end
+  return uses
+end
+
+function block_changes_deps(deps, ir, b)
+  for (v, st) in b
+    if haskey(deps, v)
+      (usages(st) ⊆ deps[v]) || return true
+    else
+      return true
+    end
+  end
+
+  brs = branches(b)
+  for br in brs
+    if br.block > 0
+      next_block = block(ir, br.block)
+      if !isempty(br.args)
+        for (x, y) in zip(arguments(next_block), br.args)
+          haskey(deps, x) && (y in deps[x]) && return true
+        end
+      end
+    end
+  end
+  return false
+end
+
+function update_deps!(deps, v, direct)
+  set = get!(deps, v, Set{Variable}())
+  union!(set, setdiff(direct, (v, )))
+  
+  for x in direct
+    if (v != x) && haskey(deps, x) && !(deps[x] ⊆ set)
+      update_deps!(deps, v, deps[x])
+    end
+  end
+  return deps
+end
+
+"""
+  dependencies(ir::IR)
+
+Return the list of direct dependencies for each variable.
+"""
+function dependencies(ir::IR)
+  worklist = [block(ir, 1)]
+  deps = Dict()
+  while !isempty(worklist)
+    b = pop!(worklist)
+    for (v, st) in b
+      update_deps!(deps, v, usages(st))
+    end
+
+    brs = branches(b)
+    jump_next_block = true
+    for br in brs
+      if br.condition === nothing
+        jump_next_block = false
+      end
+
+      if br.block > 0 # reachable
+        next_block = block(ir, br.block)
+        if !isempty(br.args) # pass arguments
+          for (x, y) in zip(arguments(next_block), br.args)
+            y isa Variable && update_deps!(deps, x, (y, ))
+          end
+        end
+
+        if block_changes_deps(deps, ir, next_block)
+          push!(worklist, next_block)
+        end
+      end
+    end
+
+    if jump_next_block
+      next_block = block(ir, b.id + 1)
+      if block_changes_deps(deps, ir, next_block)
+        push!(worklist, next_block)
+      end
+    end
+  end
+  return deps
+end
+
 function usecounts(ir::IR)
   counts = Dict{Variable,Int}()
   prewalk(ir) do x
