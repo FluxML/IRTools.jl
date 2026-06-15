@@ -40,6 +40,28 @@ foo(x) = y = x > 0 ? x + 1 : x - 1
 
 @test passthrough(() -> [1, 2, 3]) == [1, 2, 3]
 
+# Loop-carried variables that permute on a back-edge lower to a parallel copy of
+# block arguments; sequentialising it naively drops values (FluxML/Zygote.jl#1198).
+function swap_loop(x, y, n)
+  for _ in 1:n
+    x, y = y, x
+  end
+  return x
+end
+for n in 0:5
+  @test roundtrip(swap_loop, 10, 20, n) == swap_loop(10, 20, n)
+end
+
+function rotate_loop(a, b, c, n)
+  for _ in 1:n
+    a, b, c = b, c, a
+  end
+  return (a, b, c)
+end
+for n in 0:6
+  @test roundtrip(rotate_loop, 1, 2, 3, n) == rotate_loop(1, 2, 3, n)
+end
+
 function err(f)
   try
     f()

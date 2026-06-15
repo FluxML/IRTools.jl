@@ -12,6 +12,36 @@ end
 
 phislot(b, i) = Slot(Symbol(:phi_, b, :_, i))
 
+sloteq(a, b) = a isa Slot && b isa Slot && a.id === b.id
+
+# Lower a parallel copy `dests .= srcs` (block-argument passing) into a sequence
+# of scalar assignments appended to block `b`. Naively emitting `dest_i = src_i`
+# in order is wrong when a destination slot is also used as a source (e.g. the
+# swap `a, b = b, a` produced by a loop), because an earlier assignment clobbers
+# a value a later one still needs. We therefore emit moves in a safe order,
+# breaking cycles by spilling a destination to a fresh temporary first.
+function copyargs!(b, dests, srcs)
+  srcs = collect(Any, srcs)
+  todo = [i for i = 1:length(dests) if !sloteq(dests[i], srcs[i])]
+  while !isempty(todo)
+    k = findfirst(i -> !any(j -> sloteq(srcs[j], dests[i]), todo), todo)
+    if k === nothing
+      # Only cycles remain; break one by saving a destination to a temporary.
+      i = first(todo)
+      tmp = Slot(gensym(:copy))
+      push!(b, :($tmp = $(dests[i])))
+      for j in todo
+        sloteq(srcs[j], dests[i]) && (srcs[j] = tmp)
+      end
+    else
+      i = todo[k]
+      push!(b, :($(dests[i]) = $(srcs[i])))
+      deleteat!(todo, k)
+    end
+  end
+  return b
+end
+
 # TODO: handle undef arguments properly.
 function slots!(ir::IR)
   slots = Dict()
@@ -37,10 +67,11 @@ function slots!(ir::IR)
     # Branches
     for br in BasicBlock(b).branches
       isreturn(br) && continue
-      for (i, val) in enumerate(br.args)
-        ϕ = phislot(br.block, i)
-        push!(b, :($ϕ = $val))
-      end
+      dests = [phislot(br.block, i) for i = 1:length(br.args)]
+      # Resolve sources to the slots they will become, so that cycles introduced
+      # by block-argument permutations (e.g. swaps) can be detected and broken.
+      srcs = [get(slots, a, a) for a in br.args]
+      copyargs!(b, dests, srcs)
       empty!(br.args)
     end
   end
