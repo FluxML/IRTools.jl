@@ -8,15 +8,9 @@ import ..Inner: IR, Variable, Statement, Branch, BasicBlock, Meta, block!,
 import Core: CodeInfo, GotoNode, SSAValue
 import Core.Compiler: IRCode, CFG, GotoIfNot, ReturnNode, StmtRange
 
-@static if VERSION > v"1.6-"
-  import Core.Compiler: InstructionStream
-end
+import Core.Compiler: InstructionStream
 
-@static if VERSION ≥ v"1.9.0-DEV.502"
-  const LineType = Int32
-else
-  const LineType = Int
-end
+const LineType = Int32
 
 @static if VERSION ≥ v"1.12.0-DEV.173"
   addline!(lines, li) = push!(lines, li, Int32(0), Int32(0))
@@ -53,11 +47,7 @@ function IRCode(ir::IR)
         x = get(defs, br.args[1], br.args[1]) |> unvars
         push!(stmts, ReturnNode(x))
       elseif br == unreachable
-        @static if VERSION >= v"1.10"
-          push!(stmts, ReturnNode())
-        else
-          push!(stmts, Expr(:call, GlobalRef(Core, :throw), "unreachable"))
-        end
+        push!(stmts, ReturnNode())
       elseif br.condition === nothing
         push!(stmts, GotoNode(br.block))
       else
@@ -75,67 +65,51 @@ function IRCode(ir::IR)
   cfg = CFG(bs, index)
 
   flags = UInt32[0x00 for _ in stmts]
-  sps = VERSION > v"1.2-" ? (VERSION >= v"1.10.0-DEV.552" ? Core.Compiler.VarState[] : []) : Core.svec()
+  sps = Core.Compiler.VarState[]
 
-  @static if VERSION > v"1.6-"
-    @static if isdefined(Core.Compiler, :CallInfo)
-      stmtinfo = Core.Compiler.CallInfo[Core.Compiler.NoCallInfo() for _ in 1:length(stmts)]
-    else
-      stmtinfo = Any[nothing for _ in 1:length(stmts)]
-    end
-    stmts = InstructionStream(stmts, types, stmtinfo, lines, flags)
-    meta = @static VERSION < v"1.9.0-DEV.472" ? [] : Expr[]
-    @static if VERSION ≥ v"1.12.0-DEV.173"
-      nlocs = length(types)
-      codelocs = fill(Int32(0), 3nlocs)
+  stmtinfo = Core.Compiler.CallInfo[Core.Compiler.NoCallInfo() for _ in 1:length(stmts)]
+  stmts = InstructionStream(stmts, types, stmtinfo, lines, flags)
+  meta = Expr[]
+  @static if VERSION ≥ v"1.12.0-DEV.173"
+    nlocs = length(types)
+    codelocs = fill(Int32(0), 3nlocs)
 
-      if !isempty(ir.lines)
-        LI = first(ir.lines)
-        topfile, topline = LI.file, LI.line
+    if !isempty(ir.lines)
+      LI = first(ir.lines)
+      topfile, topline = LI.file, LI.line
 
-        for i in 1:nlocs
-          lineidx = lines[3i - 2]
-          if lineidx == 0
-            continue
-          end
-          # TODO: support inlining, see passes/inline.jl
-          @assert LI.file === topfile && LI.inlined_at == 0
-          LI = ir.lines[lineidx]
-          codelocs[3i - 2] = LI.line
+      for i in 1:nlocs
+        lineidx = lines[3i - 2]
+        if lineidx == 0
+          continue
         end
-      else
-        topline = Int32(1)
+        # TODO: support inlining, see passes/inline.jl
+        @assert LI.file === topfile && LI.inlined_at == 0
+        LI = ir.lines[lineidx]
+        codelocs[3i - 2] = LI.line
       end
-      codelocs = @ccall jl_compress_codelocs(topline::Int32, codelocs::Any, nlocs::Csize_t)::Any
-
-      debuginfo = Core.Compiler.DebugInfoStream(lines)
-      debuginfo.def = ir.meta isa Meta ? ir.meta.instance : :var"n/a"
-      debuginfo.linetable = Core.DebugInfo(debuginfo.def, nothing, Core.svec(), codelocs)
-      IRCode(stmts, cfg, debuginfo, ir.blocks[1].argtypes, meta, sps)
     else
-      mod, meth = ir.meta isa Meta ? (ir.meta.method.module, ir.meta.method) : (Main, nothing)
-      linetable = map(li -> Core.LineInfoNode(mod, meth, li.file, LineType(li.line), LineType(li.inlined_at)),
-                      ir.lines)
-      IRCode(stmts, cfg, linetable, ir.blocks[1].argtypes, meta, sps)
+      topline = Int32(1)
     end
+    codelocs = @ccall jl_compress_codelocs(topline::Int32, codelocs::Any, nlocs::Csize_t)::Any
+
+    debuginfo = Core.Compiler.DebugInfoStream(lines)
+    debuginfo.def = ir.meta isa Meta ? ir.meta.instance : :var"n/a"
+    debuginfo.linetable = Core.DebugInfo(debuginfo.def, nothing, Core.svec(), codelocs)
+    IRCode(stmts, cfg, debuginfo, ir.blocks[1].argtypes, meta, sps)
   else
-    IRCode(stmts, types, lines, flags, cfg, ir.lines, ir.blocks[1].argtypes, [], sps)
+    mod, meth = ir.meta isa Meta ? (ir.meta.method.module, ir.meta.method) : (Main, nothing)
+    linetable = map(li -> Core.LineInfoNode(mod, meth, li.file, LineType(li.line), LineType(li.inlined_at)),
+                    ir.lines)
+    IRCode(stmts, cfg, linetable, ir.blocks[1].argtypes, meta, sps)
   end
 end
 
-if VERSION >= v"1.6.0-DEV.272"
-    isgotoifnot(@nospecialize(ex)) = (@assert !isexpr(ex, :gotoifnot); ex isa Core.GotoIfNot)
-    destruct_gotoifnot(@nospecialize(ex)) = Any[ex.cond, ex.dest]
+isgotoifnot(@nospecialize(ex)) = (@assert !isexpr(ex, :gotoifnot); ex isa Core.GotoIfNot)
+destruct_gotoifnot(@nospecialize(ex)) = Any[ex.cond, ex.dest]
 
-    isreturn(@nospecialize(ex)) = (@assert !isexpr(ex, :return); ex isa ReturnNode)
-    retval(@nospecialize(ex)) = ex.val
-else
-    isgotoifnot(@nospecialize(ex)) = isexpr(ex, :gotoifnot)
-    destruct_gotoifnot(@nospecialize(ex)) = ex.args
-
-    isreturn(@nospecialize(ex)) = isexpr(ex, :return)
-    retval(@nospecialize(ex)) = ex.args[1]
-end
+isreturn(@nospecialize(ex)) = (@assert !isexpr(ex, :return); ex isa ReturnNode)
+retval(@nospecialize(ex)) = ex.val
 
 function blockstarts(ci::CodeInfo)
   bs = Int[]
@@ -215,6 +189,12 @@ function IR(ci::CodeInfo, nargs::Integer; meta = nothing)
               unless = rename(cond))
     elseif isreturn(ex)
       return!(ir, rename(retval(ex)))
+    elseif ex isa GlobalRef
+      # As of Julia 1.12, lowering hoists the callee of a call into its own
+      # statement (e.g. `%4 = Main.:*; %5 = (%4)(%2, %3)`). Inline such bare
+      # `GlobalRef` statements back into their use sites so the IR retains the
+      # shape it had on earlier versions (`%4 = %2 * %3`).
+      _rename[Core.SSAValue(i)] = ex
     else
       _rename[Core.SSAValue(i)] = push!(ir, IRTools.stmt(rename(ex), line = codelocs[i]))
     end
