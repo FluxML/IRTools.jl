@@ -215,6 +215,12 @@ function IR(ci::CodeInfo, nargs::Integer; meta = nothing)
               unless = rename(cond))
     elseif isreturn(ex)
       return!(ir, rename(retval(ex)))
+    elseif ex isa GlobalRef
+      # As of Julia 1.12, lowering hoists the callee of a call into its own
+      # statement (e.g. `%4 = Main.:*; %5 = (%4)(%2, %3)`). Inline such bare
+      # `GlobalRef` statements back into their use sites so the IR retains the
+      # shape it had on earlier versions (`%4 = %2 * %3`).
+      _rename[Core.SSAValue(i)] = ex
     else
       _rename[Core.SSAValue(i)] = push!(ir, IRTools.stmt(rename(ex), line = codelocs[i]))
     end
