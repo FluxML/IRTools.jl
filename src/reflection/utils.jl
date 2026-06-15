@@ -86,21 +86,15 @@ function slots!(ci::CodeInfo)
     function f(x)
       x isa Slot || return x
       haskey(ss, x) && return ss[x]
-      @static if VERSION >= v"1.10.0-DEV.870"
-        push!(ci.slottypes, x.type)
-      end
+      push!(ci.slottypes, x.type)
       push!(ci.slotnames, x.id)
       push!(ci.slotflags, 0x00)
       ss[x] = SlotNumber(length(ci.slotnames))
     end
-    if VERSION >= v"1.6.0-DEV.272"
-      ci.code[i] = MacroTools.prewalk(ci.code[i]) do x
-        x isa Core.ReturnNode ? (isdefined(x,:val) ? Core.ReturnNode(f(x.val)) : x) :
-        x isa Core.GotoIfNot ? Core.GotoIfNot(f(x.cond), x.dest) :
-        f(x)
-      end
-    else
-      ci.code[i] = MacroTools.prewalk(f, ci.code[i])
+    ci.code[i] = MacroTools.prewalk(ci.code[i]) do x
+      x isa Core.ReturnNode ? (isdefined(x,:val) ? Core.ReturnNode(f(x.val)) : x) :
+      x isa Core.GotoIfNot ? Core.GotoIfNot(f(x.cond), x.dest) :
+      f(x)
     end
   end
   return ci
@@ -162,27 +156,13 @@ function splicearg!(ir::IR)
   return arg
 end
 
-@static if VERSION >= v"1.10.0-DEV.870"
-  function replace_code_newstyle!(ci, ir, _)
-    isnothing(ci.slottypes) && (ci.slottypes = Any[])
-    return Core.Compiler.replace_code_newstyle!(ci, ir)
-  end
-elseif VERSION < v"1.8.0-DEV.267"
-  function replace_code_newstyle!(ci, ir, n_argtypes)
-    return Core.Compiler.replace_code_newstyle!(ci, ir, n_argtypes-1)
-  end
-else
-  using Core.Compiler: replace_code_newstyle!
+function replace_code_newstyle!(ci, ir, _)
+  isnothing(ci.slottypes) && (ci.slottypes = Any[])
+  return Core.Compiler.replace_code_newstyle!(ci, ir)
 end
 
-@static if VERSION >= v"1.10.0-DEV.870"
-  function get_staged(mi, world)
-    return Core.Compiler.get_staged(mi, world)
-  end
-else
-  function get_staged(mi, _)
-    return Core.Compiler.get_staged(mi)
-  end
+function get_staged(mi, world)
+  return Core.Compiler.get_staged(mi, world)
 end
 
 function update!(ci::CodeInfo, ir::Core.Compiler.IRCode)

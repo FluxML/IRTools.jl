@@ -135,8 +135,6 @@ end
 
 const caches = Dict()
 
-if VERSION >= v"1.10.0-DEV.873"
-
 function dynamo_generator(world::UInt, source, self, args)
   cache = if haskey(caches, self)
     caches[self]
@@ -162,8 +160,6 @@ function dynamo_lambda_generator(world::UInt, source, self, args)
   stub(world, source, ex)
 end
 
-end
-
 macro dynamo(ex)
   @capture(shortdef(ex), (name_(args__) = body_) |
                          (name_(args__) where {Ts__} = body_)) ||
@@ -172,31 +168,14 @@ macro dynamo(ex)
   f, T = isexpr(name, :(::)) ?
     (length(name.args) == 1 ? (esc(gensym()), esc(name.args[1])) : esc.(name.args)) :
     (esc(gensym()), :(Core.Typeof($(esc(name)))))
-  gendef = if VERSION >= v"1.10.0-DEV.873"
-    quote
-      function ($f::$T)($(esc(:args))...) where $(Ts...)
-        $(Expr(:meta, :generated, dynamo_generator))
-        $(Expr(:meta, :generated_only))
-      end
-      function (f::IRTools.Inner.Lambda{<:Tuple{<:$T,Vararg{Any}}})(args...) where $(Ts...)
-        $(Expr(:meta, :generated, dynamo_lambda_generator))
-        $(Expr(:meta, :generated_only))
-      end
+  gendef = quote
+    function ($f::$T)($(esc(:args))...) where $(Ts...)
+      $(Expr(:meta, :generated, dynamo_generator))
+      $(Expr(:meta, :generated_only))
     end
-  else
-    quote
-      @generated function ($f::$T)($(esc(:args))...) where $(Ts...)
-        cache = if haskey($caches, $T)
-          $caches[$T]
-        else
-          $caches[$T] = Dict()
-        end
-        return IRTools.dynamo(cache, nothing, $f, args...)
-      end
-      @generated function (f::IRTools.Inner.Lambda{<:Tuple{<:$T,Vararg{Any}}})(args...) where $(Ts...)
-        cache = $caches[$T]
-        return IRTools.Inner.dynamo_lambda(cache, nothing, f)
-      end
+    function (f::IRTools.Inner.Lambda{<:Tuple{<:$T,Vararg{Any}}})(args...) where $(Ts...)
+      $(Expr(:meta, :generated, dynamo_lambda_generator))
+      $(Expr(:meta, :generated_only))
     end
   end
   quote

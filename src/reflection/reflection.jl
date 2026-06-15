@@ -2,11 +2,7 @@ using Core: CodeInfo, Typeof
 using Core.Compiler: InferenceState, MethodInstance, svec
 using Base: typesof
 
-if isdefined(Base, :hasgenerator) # VERSION >= v"1.7.0"
-  hasgenerator(x) = Base.hasgenerator(x)
-else
-  hasgenerator(x) = Base.isgenerated(x)
-end
+hasgenerator(x) = Base.hasgenerator(x)
 
 worldcounter() = ccall(:jl_get_world_counter, UInt, ())
 
@@ -56,33 +52,22 @@ function meta(T; types = T, world=nothing)
   min_world = Ref{UInt}(typemin(UInt))
   max_world = Ref{UInt}(typemax(UInt))
   has_ambig = Ptr{Int32}(C_NULL)  # don't care about ambiguous results
-  _methods = if VERSION >= v"1.7.0-DEV.1297"
-      Base._methods_by_ftype(T, #=mt=# nothing, #=lim=# -1,
-                             world, #=ambig=# false,
-                             min_world, max_world, has_ambig)
-  else
-      Base._methods_by_ftype(T, #=lim=# -1,
-                             world, #=ambig=# false,
-                             min_world, max_world, has_ambig)
-  end
+  _methods = Base._methods_by_ftype(T, #=mt=# nothing, #=lim=# -1,
+                                    world, #=ambig=# false,
+                                    min_world, max_world, has_ambig)
   _methods === nothing && return nothing
   _methods isa Bool && return nothing
   length(_methods) == 0 && return nothing
   type_signature, sps, method = last(_methods)
   sps = svec(map(untvar, sps)...)
-  @static if VERSION >= v"1.2-"
-    mi = Core.Compiler.specialize_method(method, types, sps)
-    ci = hasgenerator(mi) ? get_staged(mi, world) : Base.uncompressed_ast(method)
-  else
-    mi = Core.Compiler.code_for_method(method, types, sps, world, false)
-    ci = hasgenerator(mi) ? get_staged(mi, world) : Base.uncompressed_ast(mi)
-  end
+  mi = Core.Compiler.specialize_method(method, types, sps)
+  ci = hasgenerator(mi) ? get_staged(mi, world) : Base.uncompressed_ast(method)
   Base.Meta.partially_inline!(ci.code, [], method.sig, Any[sps...], 0, 0, :propagate)
   Meta(method, mi, ci, method.nargs, sps)
 end
 
 function invoke_tweaks!(ci::CodeInfo)
-  if VERSION >= v"1.10.0-DEV.870" && ci.slottypes !== nothing
+  if ci.slottypes !== nothing
     ci.slottypes = [typeof(invoke), ci.slottypes[1], Type, ci.slottypes[2:end]...]
   end
   ci.slotnames = [:invoke, ci.slotnames[1], :T, ci.slotnames[2:end]...]

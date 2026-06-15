@@ -333,10 +333,7 @@ function log!(ir, msg)
 end
 
 totype(T::Type) = T
-
-if isdefined(Core.Compiler, :PartialStruct)
-  totype(T::Core.Compiler.PartialStruct) = T.typ
-end
+totype(T::Core.Compiler.PartialStruct) = T.typ
 
 function pis!(ir::IR)
   for (v, st) in ir
