@@ -212,6 +212,8 @@ function ssa!(ir::IR)
   todo = Dict(b => Dict{Int,Vector{Slot}}() for b in 1:length(ir.blocks))
   catch_branches = Dict{Int,Vector{CatchBranch}}()
   handlers = Int[]
+  branched_handlers = Dict{Int,Tuple{Vector{Int},Dict{Int,Vector{CatchBranch}}}}()
+
   function reaching(b, slot)
     haskey(defs[b.id], slot) && return defs[b.id][slot]
     b.id == 1 && return undef
@@ -282,6 +284,10 @@ function ssa!(ir::IR)
   end
   for b in blocks(ir)
     current = b.id
+    if current in keys(branched_handlers)
+      (handlers,catch_branches) = branched_handlers[current]
+    end
+    
     rename(ex) = prewalk(x -> x isa Slot ? reaching(b, x) : x, ex)
     for (v, st) in b
       ex = st.expr
@@ -300,6 +306,9 @@ function ssa!(ir::IR)
     end
     for i = 1:length(BasicBlock(b).branches)
       BasicBlock(b).branches[i] = rename(BasicBlock(b).branches[i])
+      if !isempty(handlers)
+        branched_handlers[BasicBlock(b).branches[i].block] = (copy(handlers),deepcopy(catch_branches))
+      end
     end
     for (succ, ss) in todo[b.id], br in branches(b, succ)
       append!(br.args, [reaching(b, v) for v in ss])
