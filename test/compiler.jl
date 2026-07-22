@@ -400,3 +400,37 @@ end
     @test fir(nothing, 1.) == log(1. - log(2.))
     @test fir(nothing, -1.) == 1.
 end
+
+# `@isdefined` on a conditionally-defined local. SSA conversion turns the slot into
+# a block argument carrying `Undefined()` when unassigned, so `isdefined` must test
+# for that rather than substituting the slot's value (which is always "defined").
+function f_isdefined(x)
+    local y
+    x > 0 && (y = 3x)
+    @isdefined(y) ? y : zero(x)
+end
+
+# `isdefined` of an argument: the arg slot is lowered to a variable before `ssa!`,
+# so this arrives as `isdefined(<variable>)` rather than `isdefined(<slot>)`.
+f_isdefined_arg(x) = @isdefined(x) ? x * 2 : zero(x)
+
+@testset "isdefined" begin
+    ir = @code_ir f_isdefined(1.)
+    # The `isdefined` node must not survive with a value argument in its place.
+    @test !any(ir) do (_, stmt)
+        IRTools.isexpr(stmt.expr, :isdefined)
+    end
+    fir = func(ir)
+    @test fir(nothing, 2.) === 6.    # y defined
+    @test fir(nothing, -1.) === 0.   # y undefined -> else branch
+    @test passthrough(f_isdefined, 2.) === 6.
+    @test passthrough(f_isdefined, -1.) === 0.
+
+    ir = @code_ir f_isdefined_arg(1.)
+    @test !any(ir) do (_, stmt)
+        IRTools.isexpr(stmt.expr, :isdefined)
+    end
+    fir = func(ir)
+    @test fir(nothing, 2.) === 4.
+    @test passthrough(f_isdefined_arg, 2.) === 4.
+end

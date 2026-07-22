@@ -206,6 +206,19 @@ struct CatchBranch
     v::Variable
 end
 
+# Definedness of a slot's reaching value `r`, for translating `Expr(:isdefined, slot)`.
+# A possibly-undefined slot becomes a block argument that carries the `Undefined()`
+# sentinel at run time when the slot was never assigned, so:
+#   * `r === undef`   -- statically never defined (e.g. reached the entry block with
+#                        no definition)             -> `false`
+#   * `r isa Variable` -- an SSA value or block argument that may be the sentinel
+#                        at run time                 -> `!(r isa Undefined)`
+#   * otherwise       -- a concrete constant, always defined -> `true`
+definedness(r) =
+  r === undef ? false :
+  r isa Variable ? xcall(:!, xcall(Core, :isa, r, Undefined)) :
+  true
+
 function ssa!(ir::IR)
   current = 1
   defs = Dict(b => Dict{Slot,Any}() for b in 1:length(ir.blocks))
@@ -282,7 +295,22 @@ function ssa!(ir::IR)
   end
   for b in blocks(ir)
     current = b.id
-    rename(ex) = prewalk(x -> x isa Slot ? reaching(b, x) : x, ex)
+    rename(ex) = prewalk(ex) do x
+      if x isa Slot
+        reaching(b, x)
+      elseif isexpr(x, :isdefined) && length(x.args) == 1 && x.args[1] isa Slot
+        # `isdefined` must not be renamed like an ordinary use: substituting the
+        # slot with its reaching value discards the definedness information.
+        definedness(reaching(b, x.args[1]))
+      elseif isexpr(x, :isdefined) && length(x.args) == 1 && x.args[1] isa Variable
+        # An argument slot is already lowered to a variable by the time we get here
+        # (see `IR(::Meta)`), so `isdefined` of it arrives pre-substituted; recover
+        # the definedness test the same way.
+        definedness(x.args[1])
+      else
+        x
+      end
+    end
     for (v, st) in b
       ex = st.expr
       if isexpr(ex, :(=)) && ex.args[1] isa Slot
