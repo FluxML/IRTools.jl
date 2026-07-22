@@ -302,6 +302,11 @@ function ssa!(ir::IR)
         # `isdefined` must not be renamed like an ordinary use: substituting the
         # slot with its reaching value discards the definedness information.
         definedness(reaching(b, x.args[1]))
+      elseif isexpr(x, :isdefined) && length(x.args) == 1 && x.args[1] isa Variable
+        # An argument slot is already lowered to a variable by the time we get here
+        # (see `IR(::Meta)`), so `isdefined` of it arrives pre-substituted; recover
+        # the definedness test the same way.
+        definedness(x.args[1])
       else
         x
       end
