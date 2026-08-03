@@ -180,7 +180,10 @@ function update!(ci::CodeInfo, ir::IR)
   if ir.meta isa Meta
     ci.method_for_inference_limit_heuristics = ir.meta.method
     if isdefined(ci, :edges)
-      ci.edges = Core.MethodInstance[ir.meta.instance]
+      # `CodeInfo.edges` uses a heterogeneous, interleaved backedge format, so the
+      # canonical container is a `Vector{Any}`. Julia 1.14 asserts this element type
+      # in `compute_edges!`, rejecting a concrete `Vector{Core.MethodInstance}`.
+      ci.edges = Any[ir.meta.instance]
     end
   end
   update!(ci, Core.Compiler.IRCode(slots!(ir)))
