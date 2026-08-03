@@ -165,7 +165,11 @@ function IR(ci::CodeInfo, nargs::Integer; meta = nothing)
     return x
   end
   for i = 1:nargs
-    _rename[Core.SlotNumber(i)] = argument!(ir)
+    arg = argument!(ir)
+    _rename[Core.SlotNumber(i)] = arg
+    # As of Julia 1.14, lowered code (e.g. the `:new` in a struct constructor)
+    # can reference arguments as `Core.Argument` rather than `Core.SlotNumber`.
+    _rename[Core.Argument(i)] = arg
   end
   for i = 1:length(ci.code)
     i in bs && block!(ir)
