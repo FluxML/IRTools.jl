@@ -13,7 +13,7 @@ xcall(mod::Module, f::Symbol, args...) = Expr(:call, GlobalRef(mod, f), args...)
 xcall(f::Symbol, args...) = xcall(Base, f, args...)
 xcall(f, args...) = Expr(:call, f, args...)
 
-map(f, br::Branch) = Branch(br, condition = f(br.condition), args = f.(br.args))
+map(f, br::Branch) = Branch(br, condition = f(br.condition), args = map(f, br.args))
 
 function map(f, b::BasicBlock)
   stmts = map(x -> Statement(x, expr = f(x.expr)), b.stmts)
@@ -23,7 +23,7 @@ end
 
 function map!(f, b::BasicBlock)
   map!(x -> Statement(x, expr = f(x.expr)), b.stmts, b.stmts)
-  map!(br -> Branch(br, condition = f(br.condition), args = f.(br.args)), b.branches, b.branches)
+  map!(br -> Branch(br, condition = f(br.condition), args = map(f, br.args)), b.branches, b.branches)
   return b
 end
 
@@ -32,7 +32,7 @@ function map!(f, b::Block)
 end
 
 function map(f, ir::IR)
-  IR(ir.defs, map.(f, ir.blocks), ir.lines, ir.meta)
+  IR(ir.defs, map(b -> map(f, b), ir.blocks), ir.lines, ir.meta)
 end
 
 function map!(f, ir::IR)
