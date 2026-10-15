@@ -67,10 +67,29 @@ function _functional(ir, tree, vars = [], cs = captures(ir, tree))
   return finish(pr)
 end
 
+# A chain of conditional branches is a nested if/else: move all but the first
+# branch of blocks with more than two into a fresh block.
+function splitbranches!(ir)
+  i = 1
+  while i <= length(blocks(ir))
+    bl = block(ir, i)
+    if length(branches(bl)) > 2
+      new = block!(ir, i+1)
+      brs = copy(branches(bl))
+      empty!(branches(bl))
+      push!(branches(bl), brs[1])
+      branch!(bl, new)
+      append!(branches(new), brs[2:end])
+    end
+    i += 1
+  end
+  return ir
+end
+
 # Unreachable blocks (e.g. left behind by a `break`) can branch anywhere, which
 # can't be expressed by nesting block lambdas along the dominator tree, and they
 # skew the dominators of the blocks they branch to. So drop them first.
 function functional(ir)
-  ir = trimblocks!(explicitbranch!(copy(ir)))
+  ir = trimblocks!(splitbranches!(explicitbranch!(copy(ir))))
   _functional(ir, domtree(ir))
 end
