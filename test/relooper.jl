@@ -55,3 +55,20 @@ ir = explicitbranch!(IR(@meta(gcd(1,1)), slots = true))
 ex = reloop(ir)
 
 @test eval(:(let arg2 = 85, arg3 = 391; $ex; end)) == gcd(85, 391)
+
+# Variables used across blocks (#37)
+
+function sumloop(i)
+  y = 0
+  for x in 1:i
+    y += x
+  end
+  return y
+end
+
+ir = explicitbranch!(IR(@meta(sumloop(2)), slots = true))
+ex = reloop(ir)
+
+for i in -1:5
+  @test eval(:(let arg2 = $i; $ex; end)) == sumloop(i)
+end
