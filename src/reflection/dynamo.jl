@@ -71,7 +71,7 @@ end
 # Used only for its CodeInfo
 dummy(args...) = nothing
 
-function dynamo(cache, world, f, args...)
+function dynamo(cache, world, mod, f, args...)
   hasmethod(transform, Tuple{Type{f},map(T -> Type{T}, args)...}; world) ||
     return :(throw(MethodError(methodinstance, args)))
   try
@@ -108,10 +108,10 @@ function dynamo(cache, world, f, args...)
   end
   _self = splicearg!(ir)
   prewalk!(x -> x === self ? _self : x, ir)
-  return update!(m.code, ir)
+  return update!(m.code, ir, mod = mod)
 end
 
-function dynamo_lambda(cache, world, f::Type{<:Lambda{S,I}}) where {S,I}
+function dynamo_lambda(cache, world, mod, f::Type{<:Lambda{S,I}}) where {S,I}
   ir = cache[(S.parameters[2:end]...,)]
   ir = getlambda(ir, I)
   ir = lambdalift!(copy(ir), S, I)
@@ -122,7 +122,7 @@ function dynamo_lambda(cache, world, f::Type{<:Lambda{S,I}}) where {S,I}
     m.code.nargs = 2
     m.code.isva = true
   end
-  return update!(m.code, ir)
+  return update!(m.code, ir, mod = mod)
 end
 
 unesc(x) = prewalk(x -> isexpr(x, :escape) ? x.args[1] : x, x)
@@ -137,6 +137,11 @@ end
 
 const caches = Dict()
 
+sourcemodule(source::Method) = source.module
+sourcemodule(source::Core.MethodInstance) = sourcemodule(source.def)
+sourcemodule(source::Module) = source
+sourcemodule(source) = Main
+
 function dynamo_generator(world::UInt, source, self, args)
   cache = if haskey(caches, self)
     caches[self]
@@ -144,7 +149,7 @@ function dynamo_generator(world::UInt, source, self, args)
     caches[self] = Dict()
   end
 
-  ex = dynamo(cache, world, self, args...)
+  ex = dynamo(cache, world, sourcemodule(source), self, args...)
   ex isa Core.CodeInfo && return ex
 
   stub = Core.GeneratedFunctionStub(identity, Core.svec(:methodinstance, :args), Core.svec())
@@ -155,7 +160,7 @@ function dynamo_lambda_generator(world::UInt, source, self, args)
   f = self.parameters[1].parameters[1]
   cache = caches[f]
 
-  ex = dynamo_lambda(cache, world, self)
+  ex = dynamo_lambda(cache, world, sourcemodule(source), self)
   ex isa Core.CodeInfo && return ex
 
   stub = Core.GeneratedFunctionStub(identity, Core.svec(:methodinstance, :args), Core.svec())

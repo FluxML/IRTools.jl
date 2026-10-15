@@ -3,7 +3,7 @@ using Base: invokelatest
 dummy() = return
 const dummy_m = which(dummy, Tuple{})
 
-function build_codeinfo(ir::IR)
+function build_codeinfo(ir::IR, mod::Module = Main)
   ir = copy(ir)
   ci = Base.uncompressed_ir(dummy_m)
   ci.inlineable = true
@@ -19,7 +19,7 @@ function build_codeinfo(ir::IR)
   end
   argument!(ir, at = 1)
   prewalk!(x -> x === self ? arguments(ir)[1] : x, ir)
-  update!(ci, ir)
+  update!(ci, ir, mod = mod)
 end
 
 struct Closure{F,T}
@@ -55,7 +55,7 @@ function func(m::Module, ir::IR)
   generator = @eval m begin
     function $(gensym())(world::UInt, source, self,
                          $([Symbol(:arg, i) for i = 1:length(arguments(ir))]...))
-      return $build_codeinfo($ir)
+      return $build_codeinfo($ir, $m)
     end
   end
   @eval m begin
