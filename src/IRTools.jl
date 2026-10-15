@@ -62,4 +62,6 @@ let exports = :[
   end
 end
 
+include("precompile.jl")
+
 end # module
