@@ -116,31 +116,56 @@ macro meta(ex...)
     error("@meta [world] f(args...)")
   end
   isexpr(call, :call) || error("@meta [world] f(args...)")
-  f, args = call.args[1], call.args[2:end]
-  :(meta(typesof($(esc.((f, args...))...)); world=$(esc(world))))
+  :(meta(typesof($(callargs(call)...)); world=$(esc(world))))
 end
 
+# Escaped arguments to `typesof` for a call; keyword calls go through `Core.kwcall`.
+function callargs(call; first = [])
+  f, args = call.args[1], call.args[2:end]
+  kws = isempty(args) || !isexpr(args[1], :parameters) ? [] : popfirst!(args).args
+  append!(kws, filter(a -> isexpr(a, :kw), args))
+  args = [first; filter(a -> !isexpr(a, :kw), args)]
+  isempty(kws) && return esc.((f, args...))
+  kws = map(k -> k isa Symbol ? Expr(:kw, k, k) : k, kws)
+  esc.((Core.kwcall, Expr(:tuple, Expr(:parameters, kws...)), f, args...))
+end
+
+"""
+    code_ir(f, Tuple{...})
+
+Retrieve the [`IR`](@ref) of the method of `f` that matches the given argument
+types.
+
+See also [`@code_ir`](@ref).
+
+    julia> code_ir(gcd, Tuple{Int,Int})
+    1: (%1, %2, %3)
+      %4 = %2 == 0
+      br 4 unless %4
+    2: ...
+"""
 function code_ir(f, T)
   m = meta(Tuple{Typeof(f),T.parameters...})
   return IR(m)
 end
 
 function code_irm(ex)
-  if isexpr(ex, :call)
-    f, args = ex.args[1], ex.args[2:end]
-  elseif isexpr(ex, :do)
-    f, args = ex.args[1].args[1], vcat(ex.args[2], ex.args[1].args[2:end])
+  if isexpr(ex, :do)
+    f, T... = callargs(ex.args[1], first = [ex.args[2]])
+  elseif isexpr(ex, :call)
+    f, T... = callargs(ex)
   else
     error("@code_ir f(args...)")
   end
-  :($code_ir($(esc(f)), typesof($(esc.(args)...))))
+  :($code_ir($f, typesof($(T...))))
 end
 
 """
     @code_ir f(args...)
 
 Convenience macro similar to `@code_lowered` or `@code_typed`. Retrieves the IR
-for the given function call.
+for the given function call. For calls with keyword arguments, this is the IR
+of the `Core.kwcall` method that handles them.
 
     julia> @code_ir gcd(10, 5)
     1: (%1, %2, %3)

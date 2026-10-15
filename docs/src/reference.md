@@ -8,6 +8,7 @@ This page provides a comprehensive reference for IRTools functionality.
 @code_ir
 IRTools.meta
 IRTools.@meta
+IRTools.code_ir
 ```
 
 ## IR Manipulation

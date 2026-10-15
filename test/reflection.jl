@@ -16,3 +16,19 @@ g(a) = 2a
 @test @code_ir(map([1,2], [3,4]) do x, y
   x + y
 end) isa IR
+
+# https://github.com/FluxML/IRTools.jl/issues/103
+kwf(a, b; c = 1) = a + b + c
+@test @code_ir(kwf(1, 2; c = 3)) isa IR
+@test @code_ir(kwf(1, 2, c = 3)) isa IR
+let c = 3
+  @test @code_ir(kwf(1, 2; c)) isa IR
+  @test @code_ir(kwf(1, 2; (; c)...)) isa IR
+end
+@test length(IRTools.arguments(@code_ir(kwf(1, 2; c = 3)))) == 5
+@test IRTools.@meta(kwf(1, 2; c = 3)).method == only(methods(Core.kwcall, Tuple{NamedTuple{(:c,),Tuple{Int}},typeof(kwf),Int,Int}))
+kwh(f, a; c = 1) = f(a) + c
+@test @code_ir(kwh(1; c = 2) do x; x; end) isa IR
+
+# code_ir
+@test IRTools.code_ir(gcd, Tuple{Int,Int}) isa IR

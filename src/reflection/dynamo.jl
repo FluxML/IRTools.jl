@@ -189,8 +189,8 @@ macro dynamo(ex)
 end
 
 macro code_ir(dy, ex)
-  @capture(ex, f_(args__)) || error("@code_dynamo f(x...)")
-  :(transform(typeof($(esc(dy))), meta($typesof($(esc(f)), $(esc.(args)...)))))
+  isexpr(ex, :call) || error("@code_dynamo f(x...)")
+  :(transform(typeof($(esc(dy))), meta($typesof($(callargs(ex)...)))))
 end
 
 # TODO could support lambdas
