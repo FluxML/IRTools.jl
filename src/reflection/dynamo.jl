@@ -72,6 +72,8 @@ end
 dummy(args...) = nothing
 
 function dynamo(cache, world, f, args...)
+  hasmethod(transform, Tuple{Type{f},map(T -> Type{T}, args)...}; world) ||
+    return :(throw(MethodError(methodinstance, args)))
   try
     # XXX: @dynamo should pass the world to the transform function, so that any
     #      IR look-ups are done in the correct world.
@@ -129,7 +131,7 @@ function lifttype(x)
   isexpr(x, :(::)) || return x
   named = length(x.args) == 2
   T = named ? x.args[2] : x.args[1]
-  T = :(Type{$T})
+  T = :(Type{<:$T})
   named ? Expr(:(::), x.args[1], T) : Expr(:(::), T)
 end
 
@@ -180,7 +182,7 @@ macro dynamo(ex)
   end
   quote
     $(isexpr(name, :(::)) || esc(:(function $name end)))
-    function IRTools.transform(::Type{<:$T}, $(esc.(lifttype.(args))...)) where $(Ts...)
+    function IRTools.transform($f::Type{<:$T}, $(esc.(lifttype.(args))...)) where $(Ts...)
       $(esc(body))
     end
     $gendef

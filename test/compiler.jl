@@ -567,3 +567,24 @@ st = SplatTrace([])
 @test st.calls == [(:sym, 1, 2)]
 f_splat2(xs, ys) = +(xs..., 1, ys...)
 @test passthrough(f_splat2, (1, 2), (3,)) == 7
+
+# The callable's name is bound to its type in the body (#51).
+struct SelfCounter end
+const self_seen = Ref{Any}(nothing)
+@dynamo function (c::SelfCounter)(m...)
+  self_seen[] = c
+  IR(m...)
+end
+
+@test SelfCounter()(sin, 0.5) == sin(0.5)
+@test self_seen[] === SelfCounter
+
+# Dynamos can be restricted to a subset of argument types (#41).
+@dynamo function dispatch_real(f, x::Real)
+  IR(f, x)
+end
+
+@testset "dynamo dispatch" begin
+  @test dispatch_real(sin, 0.5) == sin(0.5)
+  @test_throws MethodError dispatch_real(sin, "a")
+end
