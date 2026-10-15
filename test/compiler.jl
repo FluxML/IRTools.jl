@@ -608,6 +608,66 @@ f_isdefined_arg(x) = @isdefined(x) ? x * 2 : zero(x)
     @test passthrough(f_isdefined_arg, 2.) === 4.
 end
 
+# Bare symbols in calls resolve in the method's module / the module given to `func`
+bare_hits = Ref(0)
+bare_hit() = (bare_hits[] += 1; nothing)
+bare_f(x) = x + 1
+@dynamo function bare_dyn(a...)
+  ir = IR(a...)
+  ir == nothing && return
+  pushfirst!(ir, :(bare_hit()))
+  return ir
+end
+bare_hits[] = 0
+@test bare_dyn(bare_f, 1) == 2
+@test bare_hits[] == 1
+
+module BareMod
+  bare_hit() = (hits[] += 1; nothing)
+  const hits = Ref(0)
+end
+ir = IR()
+x = argument!(ir)
+push!(ir, :(bare_hit()))
+return!(ir, x)
+@test IRTools.evalir(BareMod, ir, 5) == 5
+@test BareMod.hits[] == 1
+@test bare_hits[] == 1
+
+# also with a `Meta`: the module passed to `evalir` wins over the method's
+ir = IR(typeof(bare_f), Int)
+pushfirst!(ir, :(bare_hit()))
+@test IRTools.evalir(BareMod, ir, bare_f, 1) == 2
+@test BareMod.hits[] == 2
+@test bare_hits[] == 1
+
+# a dynamo resolves bare symbols in its own module, not the IR's source module
+module BareB
+  f(x) = x + 1
+  hook() = "B.hook"
+end
+module BareA
+  using IRTools
+  hook() = "A.hook"
+  IRTools.@dynamo function dyn(a...)
+    ir = IRTools.IR(a...)
+    ir === nothing && return
+    h = push!(ir, Expr(:call, :hook))
+    IRTools.return!(ir, h)
+    return ir
+  end
+  struct Counter end
+  IRTools.@dynamo function (c::Counter)(a...)
+    ir = IRTools.IR(a...)
+    ir === nothing && return
+    h = push!(ir, Expr(:call, :hook))
+    IRTools.return!(ir, h)
+    return ir
+  end
+end
+@test BareA.dyn(BareB.f, 1) == "A.hook"
+@test BareA.Counter()(BareB.f, 1) == "A.hook"
+
 # `recurse!` keeps splatted calls intact and recurses into the callee (#74, #62).
 mutable struct SplatTrace
   calls::Vector{Any}

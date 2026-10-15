@@ -176,7 +176,23 @@ function update!(ci::CodeInfo, ir::Core.Compiler.IRCode)
   return ci
 end
 
-function update!(ci::CodeInfo, ir::IR)
+# Since Julia 1.12 bare symbols in calls resolve to `Core` rather than the
+# method's module; pin them to a `GlobalRef` as older versions did.
+function globalrefs!(ir::IR, mod::Module)
+  for (v, st) in ir
+    ex = st.expr
+    isexpr(ex, :call) || continue
+    any(x -> x isa Symbol, ex.args) || continue
+    args = Any[x isa Symbol ? GlobalRef(mod, x) : x for x in ex.args]
+    ir[v] = Statement(st, expr = Expr(:call, args...))
+  end
+  return ir
+end
+
+function update!(ci::CodeInfo, ir::IR; mod::Module = ir.meta isa Meta ? ir.meta.method.module : Main)
+  @static if VERSION ≥ v"1.12.0-DEV.173"
+    globalrefs!(ir, mod)
+  end
   if ir.meta isa Meta
     ci.method_for_inference_limit_heuristics = ir.meta.method
     if isdefined(ci, :edges)
