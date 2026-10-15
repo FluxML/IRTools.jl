@@ -115,11 +115,30 @@ entry(s::Loop) = entry(s.inner)
 entry(s::Multiple) = union(entry.(s.inner)...)
 entry(s::Nothing) = Int[]
 
+structblocks(s::Simple) = [s.block; structblocks(s.next)]
+structblocks(s::Loop) = [structblocks(s.inner); structblocks(s.next)]
+structblocks(s::Multiple) = [vcat(structblocks.(s.inner)...); structblocks(s.next)]
+structblocks(::Nothing) = Int[]
+
 struct ASTCtx
   ir::IR
   args::Dict{Variable,Symbol}
   branches::Dict{Any,Any}
   inline::Bool
+  shared::Set{Variable} # variables used outside the block defining them
+  env::Dict{Any,Any}    # temporaries of variables in `shared`
+end
+
+function sharedvars(ir::IR)
+  shared = Set{Variable}()
+  for b in blocks(ir)
+    defs = Set(keys(b))
+    prewalk(b) do x
+      x isa Variable && x ∉ defs && x ∉ arguments(ir) && push!(shared, x)
+      x
+    end
+  end
+  return shared
 end
 
 function ast(cx::ASTCtx, b::Block)
@@ -129,10 +148,14 @@ function ast(cx::ASTCtx, b::Block)
     x
   end
   exs = []
-  env = Dict{Any,Any}(cx.args)
+  env = merge(Dict{Any,Any}(cx.args), cx.env)
   for v in keys(b)
     ex = b[v].expr
-    if cx.inline && get(usages, v, 0) == 1 && !(ex isa Slot) # TODO not correct
+    if v in cx.shared
+      tmp = gensym("tmp")
+      push!(exs, :($tmp = $(rename(env, ex))))
+      env[v] = cx.env[v] = tmp
+    elseif cx.inline && get(usages, v, 0) == 1 && !(ex isa Slot) # TODO not correct
       env[v] = rename(env, ex)
     elseif get(usages, v, 0) == 0
       isexpr(ex) && push!(exs, rename(env, ex))
@@ -192,11 +215,25 @@ function ast(cx::ASTCtx, cfg::Multiple)
 end
 
 function ast(cx::ASTCtx, cfg::Loop)
+  saved = copy(cx.branches)
+  try
+    astloop(cx, cfg)
+  finally
+    empty!(cx.branches)
+    merge!(cx.branches, saved)
+  end
+end
+
+function astloop(cx::ASTCtx, cfg::Loop)
   for e in entry(cfg)
     cx.branches[e] = :continue
   end
   for e in entry(cfg.next)
     cx.branches[e] = :break
+  end
+  body = structblocks(cfg.inner)
+  for b in body, br in branches(block(cx.ir, b))
+    isreturn(br) || br.block in body || haskey(cx.branches, br.block) || (cx.branches[br.block] = :break)
   end
   brs = branches(block(cx.ir, cfg.inner.block))
   if length(brs) == 2 && brs[1].block in entry(cfg.next) && brs[2].block in entry(cfg.inner.next)
@@ -222,5 +259,5 @@ function reloop(ir::IR; inline = true)
   ir = explicitbranch!(copy(ir))
   cfg = reloop(CFG(ir))
   args = Dict(v => Symbol(:arg, i) for (i, v) in enumerate(arguments(ir)))
-  ast(ASTCtx(ir, args, Dict(), inline), cfg)
+  ast(ASTCtx(ir, args, Dict(), inline, sharedvars(ir), Dict()), cfg)
 end
