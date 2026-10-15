@@ -179,6 +179,28 @@ end
 
 codeinfo(m::Meta) = m.code
 
+"""
+    argnames(ir)
+
+Source names of the arguments of the entry block of `ir`, as a `Vector{Symbol}`
+parallel to `arguments(block(ir, 1))`. The first argument is the function itself
+(named `#self#`). Arguments without a recorded name (e.g. ones added with
+[`argument!`](@ref)) get an empty name, and `nothing` is returned if `ir` has no
+[`Meta`](@ref). Printing of `ir` is unaffected.
+
+    julia> f(x) = (y = x + 1; sin(2y));
+
+    julia> IRTools.argnames(IR(typeof(f), Int))
+    2-element Vector{Symbol}:
+     Symbol("#self#")
+     :x
+"""
+function argnames(ir)
+  ir.meta isa Meta || return nothing
+  names = ir.meta.code.slotnames
+  [i <= min(ir.meta.nargs, length(names)) ? names[i] : Symbol("") for i in 1:length(arguments(ir))]
+end
+
 function argnames!(meta, names...)
   meta.code.slotnames = [names...]
 end
