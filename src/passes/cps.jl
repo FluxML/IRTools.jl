@@ -67,4 +67,10 @@ function _functional(ir, tree, vars = [], cs = captures(ir, tree))
   return finish(pr)
 end
 
-functional(ir) = _functional(explicitbranch!(ir), domtree(ir))
+# Unreachable blocks (e.g. left behind by a `break`) can branch anywhere, which
+# can't be expressed by nesting block lambdas along the dominator tree, and they
+# skew the dominators of the blocks they branch to. So drop them first.
+function functional(ir)
+  ir = trimblocks!(explicitbranch!(copy(ir)))
+  _functional(ir, domtree(ir))
+end
