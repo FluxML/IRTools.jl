@@ -401,6 +401,81 @@ end
     @test fir(nothing, -1.) == 1.
 end
 
+# `try` regions with several exits, each with its own `leave`.
+function f_try_return(cond)
+    try
+        if cond return end
+    finally
+    end
+end
+
+function f_try_early_return(cond, y)
+    x = 1
+    try
+        cond && return x
+        x = 2
+        y < 0 && error()
+        x = 3
+    catch
+        return -x
+    end
+    return x
+end
+
+function f_try_break(n)
+    s = 0
+    for i in 1:n
+        try
+            i > 3 && break
+            s += i
+        catch
+        end
+    end
+    return s
+end
+
+function f_try_goto(x)
+    try
+        try
+            x > 0 && @goto out
+        catch
+        end
+    catch
+    end
+    return 0
+    @label out
+    y = 2x
+    return y
+end
+
+@testset "try with early exits" begin
+    ir = @code_ir f_try_return(true)
+    fir = func(ir)
+    @test fir(nothing, true) === nothing
+    @test fir(nothing, false) === nothing
+
+    ir = @code_ir f_try_early_return(true, 1)
+    fir = func(ir)
+    @test fir(nothing, true, 1) === 1
+    @test fir(nothing, false, 1) === 3
+    @test fir(nothing, false, -1) === -2
+
+    ir = @code_ir f_try_break(1)
+    fir = func(ir)
+    @test fir(nothing, 2) === 3
+    @test fir(nothing, 10) === 6
+
+    # The `goto` leaves both handlers, so the code after the label must not
+    # branch to either catch block.
+    ir = @code_ir f_try_goto(1)
+    @test !any(((_, stmt),) -> IRTools.isexpr(stmt.expr, :catch), IRTools.blocks(ir)[end])
+    fir = func(ir)
+    @test fir(nothing, 2) === 4
+    @test fir(nothing, -2) === 0
+
+    @test IR(meta(Tuple{typeof(Base.Partr.multiq_size), Int8})) isa IR
+end
+
 # `@isdefined` on a conditionally-defined local. SSA conversion turns the slot into
 # a block argument carrying `Undefined()` when unassigned, so `isdefined` must test
 # for that rather than substituting the slot's value (which is always "defined").

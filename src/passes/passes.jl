@@ -219,11 +219,46 @@ definedness(r) =
   r isa Variable ? xcall(:!, xcall(Core, :isa, r, Undefined)) :
   true
 
+# Number of handlers popped by a `leave`: a count before Julia 1.11, and one
+# `enter` token per handler since.
+nleave(ex) = ex.args[1] isa Integer ? ex.args[1] : count(!isnothing, ex.args)
+
+# The stack of active exception handlers on entry to each (reachable) block. This
+# follows the CFG rather than the block order, since a `try` region can have
+# several exits (e.g. an early `return` or `break`), each with its own `leave`.
+# Catch blocks start with the stack of their `enter`, minus their own handler (so
+# the `leave` with which they start before Julia 1.11 is skipped).
+function handler_stacks(ir::IR, catches)
+  stacks = Dict(1 => Int[])
+  queue = [1]
+  while !isempty(queue)
+    b = block(ir, pop!(queue))
+    handlers = copy(stacks[b.id])
+    for (_, st) in b
+      ex = st.expr
+      if isexpr(ex, :enter)
+        haskey(stacks, ex.args[1]) || (stacks[ex.args[1]] = copy(handlers); push!(queue, ex.args[1]))
+        push!(handlers, ex.args[1])
+      elseif isexpr(ex, :leave) && !(b.id in catches)
+        foreach(_ -> pop!(handlers), 1:nleave(ex))
+      end
+    end
+    for c in successors(b)
+      haskey(stacks, c.id) && continue
+      stacks[c.id] = copy(handlers)
+      push!(queue, c.id)
+    end
+  end
+  return stacks
+end
+
 function ssa!(ir::IR)
   current = 1
   defs = Dict(b => Dict{Slot,Any}() for b in 1:length(ir.blocks))
   todo = Dict(b => Dict{Int,Vector{Slot}}() for b in 1:length(ir.blocks))
   catch_branches = Dict{Int,Vector{CatchBranch}}()
+  catches = Set{Int}(st.expr.args[1] for (_, st) in ir if isexpr(st.expr, :enter))
+  stacks = handler_stacks(ir, catches)
   handlers = Int[]
   function reaching(b, slot)
     haskey(defs[b.id], slot) && return defs[b.id][slot]
@@ -295,6 +330,7 @@ function ssa!(ir::IR)
   end
   for b in blocks(ir)
     current = b.id
+    handlers = copy(get(stacks, b.id, Int[]))
     rename(ex) = prewalk(ex) do x
       if x isa Slot
         reaching(b, x)
@@ -320,8 +356,8 @@ function ssa!(ir::IR)
       elseif isexpr(ex, :enter)
         push!(handlers, ex.args[1])
         catchbranch!(v)
-      elseif isexpr(ex, :leave) && !haskey(catch_branches, current)
-        pop!(handlers)
+      elseif isexpr(ex, :leave) && !(current in catches)
+        foreach(_ -> pop!(handlers), 1:nleave(ex))
       else
         ir[v] = rename(ex)
       end
