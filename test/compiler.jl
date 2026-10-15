@@ -22,6 +22,26 @@ f_returnnode(::T) where {T} = T
 f_gotoifnot(::Val{x}) where {x} = x ? 1 : 0
 @test passthrough(f_gotoifnot, Val(true)) == 1
 
+# `invoke` shifts the slots of the invoked method, including those used
+# directly by `return` and `goto ... if not` (#126).
+f_invoke_id(x) = x
+function f_invoke_branch(x, c)
+  y = x
+  if c
+    y = 2x
+  end
+  return y
+end
+@test passthrough(x -> invoke(f_invoke_id, Tuple{Any}, x), 1) == 1
+@test passthrough((x, c) -> invoke(f_invoke_branch, Tuple{Any,Any}, x, c), 1, true) == 2
+@test passthrough((x, c) -> invoke(f_invoke_branch, Tuple{Any,Any}, x, c), 1, false) == 1
+# Constructors refer to their arguments as `Core.Argument`s as of Julia 1.14.
+struct InvokeT{T}
+  x::T
+  y::Int
+end
+@test passthrough((x, y) -> invoke(InvokeT{Int}, Tuple{Any,Any}, x, y), 1, 2) == InvokeT{Int}(1, 2)
+
 @test @code_ir(passthrough, add(2, 3)) isa IR
 
 IRTools.refresh(roundtrip)

@@ -72,9 +72,17 @@ function invoke_tweaks!(ci::CodeInfo)
   end
   ci.slotnames = [:invoke, ci.slotnames[1], :T, ci.slotnames[2:end]...]
   ci.slotflags = [0x00, ci.slotflags[1], 0x00, ci.slotflags[2:end]...]
+  shift(i) = i == 1 ? 2 : i+2
+  f(x) = x isa SlotNumber ? SlotNumber(shift(x.id)) :
+         x isa Core.Argument ? Core.Argument(shift(x.n)) :
+         x
+  # `prewalk` doesn't descend into these nodes, so their slots need handling here.
   ci.code = map(ci.code) do x
     prewalk(x) do x
-      x isa SlotNumber ? SlotNumber(x.id == 1 ? 2 : x.id+2) : x
+      x isa Core.ReturnNode ? (isdefined(x, :val) ? Core.ReturnNode(f(x.val)) : x) :
+      x isa Core.GotoIfNot ? Core.GotoIfNot(f(x.cond), x.dest) :
+      x isa Core.NewvarNode ? Core.NewvarNode(f(x.slot)) :
+      f(x)
     end
   end
 end
