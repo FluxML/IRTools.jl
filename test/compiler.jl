@@ -228,6 +228,34 @@ end
 
 @test anf(pow, 2, 3) == 8
 
+# Closures produced by `functional` can be evaluated with `evalir` (#102).
+@testset "evalir with lambdas" begin
+  using IRTools: functional, evalir
+  bar() = if true false else false end
+  function powr(x, n); r = 1; while n > 0; r *= x; n -= 1; end; r; end
+  function nest(n)
+    s = 0
+    for i = 1:n
+      for j = 1:i
+        j % 2 == 0 && continue
+        s += j
+      end
+    end
+    s
+  end
+  @test evalir(functional(IR(typeof(bar))), bar) == bar()
+  @test evalir(functional(IR(typeof(powr), Int, Int)), powr, 2, 10) == 1024
+  @test evalir(functional(IR(typeof(nest), Int)), nest, 7) == nest(7)
+  @dynamo function functional_dyna(a...)
+    ir = IR(a...)
+    ir === nothing && return
+    functional(ir)
+  end
+  @test functional_dyna(bar) == bar()
+  @test evalir(@code_ir(functional_dyna, bar()), bar) == bar()
+  @test evalir(@code_ir(functional_dyna, powr(2, 3)), powr, 2, 10) == 1024
+end
+
 # `break` leaves unreachable blocks behind (#129).
 function f_break()
   while true break end
