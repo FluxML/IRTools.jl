@@ -300,6 +300,38 @@ end
            isa Pair{Core.CodeInfo,DataType})
 end
 
+# Blocks with more than two branches (#100).
+@testset "multibranch" begin
+  f100(x, y) = x && y && error()
+  g100(a, b, c, d) = a && b && c && d && error()
+  function h100(n, a, b)
+    s = 0
+    for i = 1:n
+      a && b && i > 1 && (s += i)
+    end
+    return s
+  end
+  @test_nowarn functional(IR(typeof(f100), Bool, Bool))
+  @test_nowarn functional(IR(typeof(g100), Bool, Bool, Bool, Bool))
+  for x in (false, true), y in (false, true)
+    if x && y
+      @test_throws ErrorException anf(f100, x, y)
+    else
+      @test anf(f100, x, y) == f100(x, y)
+    end
+  end
+  for a in (false, true), b in (false, true), c in (false, true), d in (false, true)
+    if a && b && c && d
+      @test_throws ErrorException anf(g100, a, b, c, d)
+    else
+      @test anf(g100, a, b, c, d) == g100(a, b, c, d)
+    end
+  end
+  for a in (false, true), b in (false, true), n in (0, 1, 4)
+    @test anf(h100, n, a, b) == h100(n, a, b)
+  end
+end
+
 function f_try_catch(x)
     y = 0.
     try
