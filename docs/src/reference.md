@@ -9,6 +9,7 @@ This page provides a comprehensive reference for IRTools functionality.
 IRTools.meta
 IRTools.@meta
 IRTools.code_ir
+IRTools.argnames
 ```
 
 ## IR Manipulation

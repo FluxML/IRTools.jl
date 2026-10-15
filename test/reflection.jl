@@ -32,3 +32,16 @@ kwh(f, a; c = 1) = f(a) + c
 
 # code_ir
 @test IRTools.code_ir(gcd, Tuple{Int,Int}) isa IR
+
+# https://github.com/FluxML/IRTools.jl/issues/31
+let f3(x) = (y = x + 1; sin(2y)), f4(a, b = 2) = a + b
+  for slots in (false, true)
+    @test IRTools.argnames(IR(typeof(f3), Int; slots)) == [Symbol("#self#"), :x]
+  end
+  @test IRTools.argnames(IR(typeof(f4), Int, Int)) == [Symbol("#self#"), :a, :b]
+  @test IRTools.argnames(@code_ir f4(1, 2)) == [Symbol("#self#"), :a, :b]
+  ir = IR(typeof(f3), Int)
+  IRTools.argument!(ir)
+  @test IRTools.argnames(ir) == [Symbol("#self#"), :x, Symbol("")]
+  @test IRTools.argnames(IR()) === nothing
+end

@@ -50,7 +50,7 @@ let exports = :[
       Graph, liveness, interference, colouring, inline,
       # Reflection, Dynamo
       Meta, Lambda, meta, code_ir, dynamo, transform, refresh, recurse!, self,
-      varargs!, slots!,
+      varargs!, slots!, argnames,
       ].args
   append!(exports, Symbol.(["@code_ir", "@dynamo", "@meta"]))
   for x in exports
