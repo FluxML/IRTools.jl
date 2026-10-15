@@ -49,7 +49,7 @@ let exports = :[
       Simple, Loop, Multiple, reloop, stackify, functional, cond, WorkQueue,
       Graph, liveness, interference, colouring, inline,
       # Reflection, Dynamo
-      Meta, Lambda, meta, dynamo, transform, refresh, recurse!, self,
+      Meta, Lambda, meta, code_ir, dynamo, transform, refresh, recurse!, self,
       varargs!, slots!,
       ].args
   append!(exports, Symbol.(["@code_ir", "@dynamo", "@meta"]))
