@@ -228,6 +228,24 @@ end
 
 @test anf(pow, 2, 3) == 8
 
+# `break` leaves unreachable blocks behind (#129).
+function f_break()
+  while true break end
+end
+
+function f_break_loop(n)
+  i = 0
+  while true
+    i += 1
+    i >= n && break
+  end
+  return i
+end
+
+@test anf(f_break) === nothing
+@test anf(f_break_loop, 3) == 3
+@test anf(f_break_loop, -1) == 1
+
 function f94(x)
     i = x
     while i > 0
