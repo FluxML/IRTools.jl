@@ -193,11 +193,20 @@ macro code_ir(dy, ex)
   :(transform(typeof($(esc(dy))), meta($typesof($(esc(f)), $(esc.(args)...)))))
 end
 
+is_global(x, m, s) = x === getfield(m, s) || x == GlobalRef(m, s)
+
 # TODO could support lambdas
 function recurse!(ir, to = self)
   for (x, st) in ir
     isexpr(st.expr, :call) || continue
-    ir[x] = Expr(:call, to, st.expr.args...)
+    args = st.expr.args
+    if length(args) >= 4 && is_global(args[1], Core, :_apply_iterate) &&
+       is_global(args[2], Base, :iterate)
+      f = insert!(ir, x, xcall(Core, :tuple, args[3]))
+      ir[x] = Expr(:call, args[1], args[2], to, f, args[4:end]...)
+    else
+      ir[x] = Expr(:call, to, args...)
+    end
   end
   return ir
 end

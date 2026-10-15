@@ -547,3 +547,23 @@ f_isdefined_arg(x) = @isdefined(x) ? x * 2 : zero(x)
     @test fir(nothing, 2.) === 4.
     @test passthrough(f_isdefined_arg, 2.) === 4.
 end
+
+# `recurse!` keeps splatted calls intact and recurses into the callee (#74, #62).
+mutable struct SplatTrace
+  calls::Vector{Any}
+end
+
+@dynamo function (t::SplatTrace)(a...)
+  ir = IR(a...)
+  ir == nothing && return
+  recurse!(ir)
+  return ir
+end
+
+(t::SplatTrace)(::typeof(rand), xs...) = (push!(t.calls, xs); 0.0)
+f_splat(args) = rand(:sym, args...)
+st = SplatTrace([])
+@test st(f_splat, (1, 2)) == 0.0
+@test st.calls == [(:sym, 1, 2)]
+f_splat2(xs, ys) = +(xs..., 1, ys...)
+@test passthrough(f_splat2, (1, 2), (3,)) == 7

@@ -289,7 +289,7 @@ julia> c() do
 3.0
 
 julia> c.count
-18
+19
 ```
 
 !!! warning
