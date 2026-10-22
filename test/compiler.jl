@@ -119,6 +119,17 @@ end
 @test passthrough(err3, () -> 2+2) == 4
 @test passthrough(err3, () -> 0//0) == 1
 
+# `@with` lowers to a try region whose `enter` references the new scope by SSA value.
+@static if isdefined(Base, :ScopedValues)
+  const scoped = Base.ScopedValues.ScopedValue(0)
+  function with_scope(x)
+    y = x + 1
+    Base.ScopedValues.@with(scoped => y, 2 * scoped[])
+  end
+  @test roundtrip(with_scope, 2) == 6
+  @test passthrough(with_scope, 2) == 6
+end
+
 @dynamo function mullify(a...)
   ir = IR(a...)
   ir == nothing && return

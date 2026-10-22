@@ -183,7 +183,7 @@ function IR(ci::CodeInfo, nargs::Integer; meta = nothing)
           ex.args[1]
       end
     enter_expr = Expr(:enter, findfirst(==(catch_dest), bs)+1)
-      isdefined(ex, :scope) && push!(enter_expr.args, ex.scope)
+      isdefined(ex, :scope) && push!(enter_expr.args, rename(ex.scope))
       _rename[Core.SSAValue(i)] = push!(ir, enter_expr)
     elseif ex isa GotoNode
       branch!(ir, findfirst(==(ex.label), bs)+1)
