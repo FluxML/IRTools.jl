@@ -159,16 +159,35 @@ function expand!(ir::IR)
   return ir
 end
 
+# Whether `prewalk` can reach a key of `env` (which holds only variables) in `x`,
+# checked without rebuilding `x`.
+function mayuse(env, @nospecialize(x))
+  x isa Variable && return haskey(env, x)
+  x isa Expr && return any(a -> mayuse(env, a), x.args)
+  x isa PhiNode && return any(i -> isassigned(x.values, i) && mayuse(env, x.values[i]), eachindex(x.values))
+  x isa PiNode && return mayuse(env, x.val)
+  return x isa IR
+end
+
 function prune!(ir::IR)
   usages = usecounts(ir)
   worklist = blocks(ir)
   queue!(b) = (b in worklist || push!(worklist, b))
+  # Called once per block with redundant arguments, so only rebuild what uses `env`.
   function rename!(env, ir)
     for b in blocks(ir)
-      prewalk!(b) do x
-        haskey(env, x) || return x
+      bb = BasicBlock(b)
+      f(x) = x isa IR ? x : prewalk(x) do y
+        y isa Variable && haskey(env, y) || return y
         foreach(queue!, successors(b))
-        env[x]
+        env[y]
+      end
+      for (i, st) in enumerate(bb.stmts)
+        mayuse(env, st.expr) && (bb.stmts[i] = Statement(st, expr = f(st.expr)))
+      end
+      for (i, br) in enumerate(bb.branches)
+        mayuse(env, br.condition) || any(a -> mayuse(env, a), br.args) || continue
+        bb.branches[i] = Branch(br, condition = f(br.condition), args = map(f, br.args))
       end
     end
   end
