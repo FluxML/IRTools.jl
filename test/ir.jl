@@ -110,3 +110,19 @@ let
   @test Base.invokelatest(f, nothing, 2) == foo2(2)
   @test Base.invokelatest(f, nothing, -2) == foo2(-2)
 end
+
+# literals aren't looked up in the variable map, so `get` isn't compiled per literal type
+let
+  ir = IR()
+  IRTools.argument!(ir)
+  x = IRTools.argument!(ir)
+  IRTools.return!(ir, push!(ir, IRTools.xcall(:tuple, x, Val(:pipe_literal))))
+  pr = IRTools.Pipe(ir)
+  for _ in pr end
+  f = IRTools.func(IRTools.finish(pr))
+  @test Base.invokelatest(f, nothing, 1) == (1, Val(:pipe_literal))
+  m = which(get, Tuple{Dict{Any,Any},Any,Any})
+  @test !any(Base.specializations(m)) do mi
+    Val{:pipe_literal} in Base.unwrap_unionall(mi.specTypes).parameters
+  end
+end
