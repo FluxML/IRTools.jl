@@ -71,22 +71,22 @@ function IRCode(ir::IR)
   stmts = InstructionStream(stmts, types, stmtinfo, lines, flags)
   meta = Expr[]
   @static if VERSION ≥ v"1.12.0-DEV.173"
-    nlocs = length(types)
+    # Statements' codelocs index `ir.lines`, so the parent line table has one entry per line.
+    nlocs = length(ir.lines)
     codelocs = fill(Int32(0), 3nlocs)
 
     if !isempty(ir.lines)
-      LI = first(ir.lines)
-      topfile, topline = LI.file, LI.line
+      topfile, topline = first(ir.lines).file, first(ir.lines).line
 
-      for i in 1:nlocs
-        lineidx = lines[3i - 2]
+      for i in 1:3:length(lines)
+        lineidx = lines[i]
         if lineidx == 0
           continue
         end
+        LI = ir.lines[lineidx]
         # TODO: support inlining, see passes/inline.jl
         @assert LI.file === topfile && LI.inlined_at == 0
-        LI = ir.lines[lineidx]
-        codelocs[3i - 2] = LI.line
+        codelocs[3lineidx - 2] = LI.line
       end
     else
       topline = Int32(1)
