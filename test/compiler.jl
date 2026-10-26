@@ -719,3 +719,23 @@ end
   @test dispatch_real(sin, 0.5) == sin(0.5)
   @test_throws MethodError dispatch_real(sin, "a")
 end
+
+@dynamo function prepend_stmts(a...)
+  ir = IR(a...)
+  ir === nothing && return
+  for _ in 1:3
+    pushfirst!(IRTools.block(ir, 1), xcall(Base, :identity, 1))
+  end
+  return ir
+end
+
+const throw_line = (@__LINE__) + 3
+function throws_on_line(x)
+  y = x + 1
+  error("throws_on_line")
+end
+
+@testset "line info survives inserted statements" begin
+  bt = try prepend_stmts(throws_on_line, 1) catch; stacktrace(catch_backtrace()) end
+  @test any(fr -> endswith(String(fr.file), "compiler.jl") && fr.line == throw_line, bt)
+end
