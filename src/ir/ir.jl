@@ -864,7 +864,8 @@ var!(p::Pipe) = NewVariable(p.var += 1)
 
 substitute!(p::Pipe, x, y) = (p.map[x] = y; x)
 substitute(p::Pipe, x::Union{Variable,NewVariable}) = p.map[x]
-substitute(p::Pipe, x) = get(p.map, x, x)
+# only variables are renamed; looking literals up in `map` would compile a lookup per literal type
+substitute(p::Pipe, x) = x
 substitute(p::Pipe, x::Statement) = stmt(x, expr = substitute(p, x.expr))
 substitute(p::Pipe, x::Expr) = Expr(x.head, substitute.((p,), x.args)...)
 substitute(p::Pipe) = x -> substitute(p, x)
