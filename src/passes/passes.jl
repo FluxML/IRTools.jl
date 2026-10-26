@@ -73,8 +73,16 @@ end
 
 function domtree(cfg::CFG; entry = 1)
   doms = dominators(cfg, entry = entry)
-  doms = Dict(b => filter(c -> b != c && b in doms[c], 1:length(cfg)) for b in 1:length(cfg))
-  children(b) = filter(c -> !(c in union(map(c -> doms[c], doms[b])...)), doms[b])
+  n = length(cfg)
+  # blocks strictly dominated by each block, as `BitSet`s so the unions below stay cheap
+  sub = [BitSet(c for c in 1:n if b != c && b in doms[c]) for b in 1:n]
+  function children(b)
+    under = BitSet()
+    for c in sub[b]
+      union!(under, sub[c])
+    end
+    return [c for c in sub[b] if !(c in under)]
+  end
   tree(b) = Pair{Int,Any}(b,tree.(children(b)))
   tree(entry)
 end
