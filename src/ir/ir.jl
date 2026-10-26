@@ -665,7 +665,9 @@ push!(b::Block, x) = push!(b, Statement(x))
 push!(b::Block, x::Variable) = x
 
 # TODO make this work on nested Exprs.
-function insert!(b::Block, idx::Integer, x)
+# `idx` is compared against every def; without `@specialize` (`Inner` is `@nospecialize`d)
+# each comparison is a dynamic dispatch.
+function insert!(b::Block, @specialize(idx::Integer), x)
   insert!(BasicBlock(b).stmts, idx, Statement(x))
   for i = 1:length(b.ir.defs)
     c, j = b.ir.defs[i]
