@@ -73,8 +73,16 @@ end
 
 function domtree(cfg::CFG; entry = 1)
   doms = dominators(cfg, entry = entry)
-  doms = Dict(b => filter(c -> b != c && b in doms[c], 1:length(cfg)) for b in 1:length(cfg))
-  children(b) = filter(c -> !(c in union(map(c -> doms[c], doms[b])...)), doms[b])
+  n = length(cfg)
+  # blocks strictly dominated by each block, as `BitSet`s so the unions below stay cheap
+  sub = [BitSet(c for c in 1:n if b != c && b in doms[c]) for b in 1:n]
+  function children(b)
+    under = BitSet()
+    for c in sub[b]
+      union!(under, sub[c])
+    end
+    return [c for c in sub[b] if !(c in under)]
+  end
   tree(b) = Pair{Int,Any}(b,tree.(children(b)))
   tree(entry)
 end
@@ -159,16 +167,35 @@ function expand!(ir::IR)
   return ir
 end
 
+# Whether `prewalk` can reach a key of `env` (which holds only variables) in `x`,
+# checked without rebuilding `x`.
+function mayuse(env, @nospecialize(x))
+  x isa Variable && return haskey(env, x)
+  x isa Expr && return any(a -> mayuse(env, a), x.args)
+  x isa PhiNode && return any(i -> isassigned(x.values, i) && mayuse(env, x.values[i]), eachindex(x.values))
+  x isa PiNode && return mayuse(env, x.val)
+  return x isa IR
+end
+
 function prune!(ir::IR)
   usages = usecounts(ir)
   worklist = blocks(ir)
   queue!(b) = (b in worklist || push!(worklist, b))
+  # Called once per block with redundant arguments, so only rebuild what uses `env`.
   function rename!(env, ir)
     for b in blocks(ir)
-      prewalk!(b) do x
-        haskey(env, x) || return x
+      bb = BasicBlock(b)
+      f(x) = x isa IR ? x : prewalk(x) do y
+        y isa Variable && haskey(env, y) || return y
         foreach(queue!, successors(b))
-        env[x]
+        env[y]
+      end
+      for (i, st) in enumerate(bb.stmts)
+        mayuse(env, st.expr) && (bb.stmts[i] = Statement(st, expr = f(st.expr)))
+      end
+      for (i, br) in enumerate(bb.branches)
+        mayuse(env, br.condition) || any(a -> mayuse(env, a), br.args) || continue
+        bb.branches[i] = Branch(br, condition = f(br.condition), args = map(f, br.args))
       end
     end
   end
