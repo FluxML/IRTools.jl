@@ -3,6 +3,7 @@ function liveness(ir)
   result = Dict(v => Set{Variable}() for v in keys(ir))
   result = merge(result, Dict(b.id => Set{Variable}() for b in blocks(ir)))
   queue = WorkQueue(1:length(blocks(ir)))
+  preds = predecessorids(ir)
   while !isempty(queue)
     b = block(ir, pop!(queue))
     for br in branches(b)
@@ -16,10 +17,10 @@ function liveness(ir)
       union!(result[v], live)
     end
     setdiff!(live, arguments(b))
-    for a in predecessors(b)
-      isempty(setdiff(live, result[a.id])) && continue
-      union!(result[a.id], live)
-      push!(queue, a.id)
+    for a in preds[b.id]
+      isempty(setdiff(live, result[a])) && continue
+      union!(result[a], live)
+      push!(queue, a)
     end
   end
   return result

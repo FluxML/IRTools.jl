@@ -198,12 +198,42 @@ struct IR
   blocks::Vector{BasicBlock}
   lines::Vector{LineInfoNode}
   meta::Any
+  # The inverse of `defs` for statements: `vars[b][i]` is the variable defined by statement
+  # `i` of block `b`, or 0 once deleted.
+  vars::Vector{Vector{Int}}
+end
+
+function IR(defs, blocks, lines, meta)
+  defs = convert(Vector{Tuple{Int,Int}}, defs)
+  blocks = convert(Vector{BasicBlock}, blocks)
+  IR(defs, blocks, lines, meta, stmtvars(defs, blocks))
 end
 
 IR(; meta = nothing) = IR([],[BasicBlock()],[],meta)
 IR(lines::Vector{LineInfoNode}; meta = nothing) = IR([],[BasicBlock()],lines,meta)
 
-Base.copy(ir::IR) = IR(copy(ir.defs), copy.(ir.blocks), copy(ir.lines), ir.meta)
+Base.copy(ir::IR) = IR(copy(ir.defs), copy.(ir.blocks), copy(ir.lines), ir.meta, copy.(ir.vars))
+
+function stmtvars(defs::Vector{Tuple{Int,Int}}, blocks::Vector{BasicBlock})
+  vars = [zeros(Int, length(bb.stmts)) for bb in blocks]
+  for (v, (b, i)) in enumerate(defs)
+    i > 0 && (vars[b][i] = v)
+  end
+  return vars
+end
+
+# `ir.vars` is updated along with `ir.defs` here, but other code may write `ir.defs`
+# directly, so it is checked before use and rebuilt if stale.
+function insync(ir::IR, b::Int)
+  length(ir.vars) == length(ir.blocks) || return false
+  vs = ir.vars[b]
+  length(vs) == length(ir.blocks[b].stmts) || return false
+  return all(i -> vs[i] == 0 || get(ir.defs, vs[i], nothing) == (b, i), eachindex(vs))
+end
+
+resync!(ir::IR) = copy!(ir.vars, stmtvars(ir.defs, ir.blocks))
+
+syncblocks!(ir::IR) = length(ir.vars) == length(ir.blocks) || resync!(ir)
 
 length(ir::IR) = sum(x -> x[2] > 0, ir.defs, init = 0)
 
@@ -216,7 +246,9 @@ is appended at the end.  Branches in all other blocks are updated to preserve th
 behaviour.
 """
 function block!(ir::IR, i = length(ir.blocks)+1)
+  syncblocks!(ir)
   insert!(ir.blocks, i, BasicBlock())
+  insert!(ir.vars, i, Int[])
   if i != length(ir.blocks)
     for b in blocks(ir), bi = 1:length(branches(b))
       br = branches(b)[bi]
@@ -236,7 +268,9 @@ Delete the block at position `i`.  Branches in all other blocks are updated to p
 behaviour.
 """
 function deleteblock!(ir::IR, i::Integer)
+  syncblocks!(ir)
   deleteat!(ir.blocks, i)
+  deleteat!(ir.vars, i)
   if i != length(ir.blocks)+1
     for b in blocks(ir), bi = 1:length(branches(b))
       br = branches(b)[bi]
@@ -385,16 +419,11 @@ Unless `insert = false`, if there are branches to this block, they will be updat
 """
 function argument!(b::Block, value = nothing, t = Any;
                    insert = true, at = length(arguments(b))+1, type = t)
-  if at < length(arguments(b))
-    for i = 1:length(b.ir.defs)
-      (c, j) = b.ir.defs[i]
-      c == b.id && -j >= at && (b.ir.defs[i] = (c, j-1))
-    end
-  end
   push!(b.ir.defs, (b.id, -at))
   arg = var(length(b.ir.defs))
   insert!(arguments(b), at, arg)
   insert!(BasicBlock(b).argtypes, at, type)
+  renumberargs!(b, at+1)
   if insert
     explicitbranch!(b)
     for bb in b.ir.blocks, br in branches(bb)
@@ -406,6 +435,13 @@ end
 
 argument!(ir::IR, a...; kw...) =
   argument!(block(ir, 1), nothing, a...; kw..., insert = false)
+
+function renumberargs!(b::Block, @specialize(from::Integer))
+  args = arguments(b)
+  for i = from:length(args)
+    b.ir.defs[args[i].id] = (b.id, -i)
+  end
+end
 
 
 """
@@ -428,26 +464,25 @@ end
 Delete the `i`-th argument from block `b`, and automatically remove it from all
 branches to this block.
 """
-function deletearg!(b::Block, i::Integer)
-  arg = arguments(b)[i]
+deletearg!(b::Block, i::Integer) = deletearg!(b, [i])
+
+deletearg!(b::Block, i::AbstractVector) = deletearg!(b, i, branchesto(b))
+
+# `brs` are the branches to `b`.
+function deletearg!(b::Block, i::AbstractVector, brs)
+  isempty(i) && return
+  i = sort(i)
+  foreach(arg -> b.ir.defs[arg.id] = (-1, -1), arguments(b)[i])
   deleteat!(arguments(b), i)
   deleteat!(argtypes(b), i)
-  for bb in b.ir.blocks, br in branches(bb)
-    br.block == b.id && deleteat!(arguments(br), i)
-  end
-  b.ir.defs[arg.id] = (-1, -1)
-  for arg in arguments(b)[i:end]
-    (bl, pos) = b.ir.defs[arg.id]
-    b.ir.defs[arg.id] = (bl, pos+1)
-  end
+  foreach(br -> deleteat!(arguments(br), i), brs)
+  renumberargs!(b, i[1])
   return
 end
 
-function deletearg!(b::Block, i::AbstractVector)
-  for i in sort(i, lt = >)
-    deletearg!(b, i)
-  end
-end
+# The branches to `b` among those of the blocks `from`.
+branchesto(b::Block, from = 1:length(b.ir.blocks)) =
+  Branch[br for c in from for br in branches(block(b.ir, c)) if br.block == b.id]
 
 """
     deletearg!(ir::IR, i)
@@ -562,13 +597,22 @@ setindex!(b::Block, x, i::Variable) = setindex!(b.ir, x, i)
 
 function Base.delete!(ir::IR, i::Variable)
   ir[i] = nothing
+  b, j = ir.defs[i.id]
+  vs = get(ir.vars, b, Int[])
+  get(vs, j, 0) == i.id && (vs[j] = 0)
   ir.defs[i.id] = (-1, -1)
   return ir
 end
 
 Base.delete!(b::Block, i::Variable) = delete!(b.ir, i)
 
-length(b::Block) = count(x -> x[1] == b.id, b.ir.defs)
+# The variable defined by each statement of `b`, or 0 where it was deleted.
+function stmtvars(b::Block)
+  insync(b.ir, b.id) || resync!(b.ir)
+  return b.ir.vars[b.id]
+end
+
+length(b::Block) = count(>(0), stmtvars(b))
 
 """
     successors(b::Block)
@@ -622,7 +666,7 @@ Return the variable keys for all statements defined in `ir`.
      %3
      %4
 """
-Base.keys(b::Block) = first.(sort([Variable(i) => v for (i, v) in enumerate(b.ir.defs) if v[1] == b.id && v[2] > 0], by = x->x[2]))
+Base.keys(b::Block) = [Variable(v) for v in stmtvars(b) if v > 0]
 
 function iterate(b::Block, (ks, i) = (keys(b), 1))
   i > length(ks) && return
@@ -666,6 +710,7 @@ function push!(b::Block, x::Statement)
   x = Statement(x)
   push!(BasicBlock(b).stmts, x)
   push!(b.ir.defs, (b.id, length(BasicBlock(b).stmts)))
+  b.id <= length(b.ir.vars) && push!(b.ir.vars[b.id], length(b.ir.defs))
   return Variable(length(b.ir.defs))
 end
 
@@ -674,17 +719,16 @@ push!(b::Block, x) = push!(b, Statement(x))
 push!(b::Block, x::Variable) = x
 
 # TODO make this work on nested Exprs.
-# `idx` is compared against every def; without `@specialize` (`Inner` is `@nospecialize`d)
-# each comparison is a dynamic dispatch.
+# `idx` bounds the loop below; without `@specialize` (`Inner` is `@nospecialize`d) its
+# iterations are dynamically dispatched.
 function insert!(b::Block, @specialize(idx::Integer), x)
+  vs = stmtvars(b)
   insert!(BasicBlock(b).stmts, idx, Statement(x))
-  for i = 1:length(b.ir.defs)
-    c, j = b.ir.defs[i]
-    if c == b.id && j >= idx
-      b.ir.defs[i] = (c, j+1)
-    end
-  end
   push!(b.ir.defs, (b.id, idx))
+  insert!(vs, idx, length(b.ir.defs))
+  for i = idx+1:length(vs)
+    vs[i] > 0 && (b.ir.defs[vs[i]] = (b.id, i))
+  end
   return Variable(length(b.ir.defs))
 end
 
@@ -807,7 +851,9 @@ Permutes block order in-place, keeping track of internal references (like branch
 """
 function Base.permute!(ir::IR, perm::AbstractVector)
   explicitbranch!(ir)
+  syncblocks!(ir)
   permute!(ir.blocks, perm)
+  permute!(ir.vars, perm)
   iperm = invperm(perm)
   for v = 1:length(ir.defs)
     b, i = ir.defs[v]
@@ -823,15 +869,8 @@ function Base.permute!(ir::IR, perm::AbstractVector)
 end
 
 function IR(b::Block)
-  ir = IR(copy(b.ir.defs), [copy(BasicBlock(b))], b.ir.lines, b.ir.meta)
-  for i in 1:length(ir.defs)
-    if ir.defs[i][1] == b.id
-      ir.defs[i] = (1, ir.defs[i][2])
-    else
-      ir.defs[i] = (-1, -1)
-    end
-  end
-  return ir
+  defs = [c == b.id ? (1, i) : (-1, -1) for (c, i) in b.ir.defs]
+  return IR(defs, [copy(BasicBlock(b))], b.ir.lines, b.ir.meta)
 end
 
 # Pipe
@@ -890,14 +929,7 @@ function Pipe(ir)
   return p
 end
 
-function pipestate(ir::IR)
-  ks = sort([Variable(i) => v for (i, v) in enumerate(ir.defs) if v[2] > 0], by = x->x[2])
-  state = [Variable[] for _ = 1:length(ir.blocks)]
-  for (v, (b, _)) in ks
-    push!(state[b], v)
-  end
-  return state
-end
+pipestate(ir::IR) = [keys(b) for b in blocks(ir)]
 
 branches(f, p::Pipe) = (p.branch = f)
 blocks(f, p::Pipe) = (p.block = f)
@@ -962,6 +994,7 @@ function Base.delete!(p::Pipe, v)
   if islastdef(p.to, v′)
     pop!(p.to.defs)
     pop!(p.to.blocks[end].stmts)
+    pop!(p.to.vars[end])
   else
     delete!(p.to, v′)
   end

@@ -126,3 +126,41 @@ let
     Val{:pipe_literal} in Base.unwrap_unionall(mi.specTypes).parameters
   end
 end
+
+# blocks index their statements' variables, which is rebuilt if `ir.defs` is changed directly
+let
+  ir = IR()
+  x = IRTools.argument!(ir)
+  a = push!(ir, IRTools.xcall(:sin, x))
+  b = push!(ir, IRTools.xcall(:cos, a))
+  c = insert!(ir, b, IRTools.xcall(:tan, a))
+  d = IRTools.insertafter!(ir, x, IRTools.xcall(:exp, x))
+  bl = IRTools.block(ir, 1)
+  @test keys(bl) == [d, a, c, b]
+  @test length(bl) == 4
+  @test first.(collect(bl)) == [d, a, c, b]
+  @test ir[c].expr == IRTools.xcall(:tan, a)
+  delete!(ir, c)
+  @test keys(bl) == [d, a, b]
+  @test sort(IRTools.Inner.definitions(bl), by = v -> v.id) == [x, a, b, d]
+  IRTools.block!(ir, 1)
+  bl = IRTools.block(ir, 2)
+  @test isempty(keys(IRTools.block(ir, 1)))
+  @test keys(bl) == [d, a, b]
+  t = push!(IRTools.block(ir, 1), ir[b])
+  ir.defs[b.id], ir.defs[t.id] = ir.defs[t.id], (-1, -1)
+  @test keys(IRTools.block(ir, 1)) == [b]
+  @test keys(bl) == [d, a]
+  @test insert!(ir, a, :foo) in keys(bl)
+  @test length.(IRTools.blocks(ir)) == [1, 3]
+end
+
+let
+  ir = IR()
+  xs = [IRTools.argument!(ir, T) for T in (Int, Float64, String, Symbol)]
+  y = IRTools.argument!(ir, Char, at = 4)
+  @test IRTools.exprtype.((ir,), [xs; y]) == [Int, Float64, String, Symbol, Char]
+  IRTools.deletearg!(ir, [3, 1])
+  @test IRTools.arguments(ir) == [xs[2], y, xs[4]]
+  @test IRTools.exprtype.((ir,), IRTools.arguments(ir)) == [Float64, Char, Symbol]
+end

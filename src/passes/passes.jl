@@ -28,9 +28,7 @@ end
 
 Base.adjoint(cfg::CFG) = transpose(cfg)
 
-function definitions(b::Block)
-  defs = [Variable(i) for i = 1:length(b.ir.defs) if b.ir.defs[i][1] == b.id]
-end
+definitions(b::Block) = Variable[arguments(b); keys(b)]
 
 function usages(b::Block)
   uses = Set{Variable}()
@@ -195,22 +193,27 @@ function merge_returns!(ir)
 end
 
 function expand!(ir::IR)
-  worklist = blocks(ir)
-  spats = Dict(b => Dict() for b in blocks(ir))
+  worklist = collect(1:length(ir.blocks))
+  queued = trues(length(ir.blocks))
+  spats = [Dict() for _ in ir.blocks]
   preds = predecessorids(ir)
   while !isempty(worklist)
-    b = pop!(worklist)
-    b.id == 1 && continue
+    id = pop!(worklist)
+    queued[id] = false
+    id == 1 && continue
+    b = block(ir, id)
     defs = definitions(b)
     uses = usages(b)
     for v in setdiff(uses, defs)
-      haskey(spats[b], v) && continue
-      spats[b][v] = argument!(b, v)
-      for c in block.((ir,), preds[b.id])
-        c in worklist || push!(worklist, c)
+      haskey(spats[id], v) && continue
+      spats[id][v] = argument!(b, insert = false)
+      explicitbranch!(b)
+      foreach(br -> push!(arguments(br), v), branchesto(b, preds[id]))
+      for c in preds[id]
+        queued[c] || (queued[c] = true; push!(worklist, c))
       end
     end
-    ir.blocks[b.id] = prewalk(x -> get(spats[b], x, x), ir.blocks[b.id])
+    ir.blocks[id] = prewalk(x -> get(spats[id], x, x), ir.blocks[id])
   end
   return ir
 end
@@ -239,7 +242,8 @@ function prune!(ir::IR)
   users = userblocks(ir)
   preds = predecessorids(ir)
   worklist = blocks(ir)
-  queue!(b) = (b in worklist || push!(worklist, b))
+  queued = trues(length(ir.blocks))
+  queue!(b) = queued[b.id] || (queued[b.id] = true; push!(worklist, b))
   # Called once per block with redundant arguments, so only visit the blocks that may use
   # `env` (whose uses move to the replacements), and only rebuild what does.
   function rename!(env, ir)
@@ -268,28 +272,27 @@ function prune!(ir::IR)
   end
   while !isempty(worklist)
     b = popfirst!(worklist)
+    queued[b.id] = false
     isempty(arguments(b)) && continue
-    brs = [br for a in preds[b.id] for br in branches(block(ir, a)) if br.block == b.id]
+    brs = branchesto(b, preds[b.id])
     isempty(brs) && continue
     # Redundant due to all inputs being the same
     inputs = [setdiff(in, (a,)) for (a, in) in zip(arguments(b), zip(arguments.(brs)...))]
     del = findall(x -> length(x) == 1, inputs)
     rename = Dict(zip(arguments(b)[del], first.(inputs[del])))
     if !isempty(rename)
-      deletearg!(b, del)
+      deletearg!(b, del, brs)
       rename!(rename, ir)
     end
     # Redundant due to not being used
     unused = findall(x -> get(usages, x, 0) == 0, arguments(b))
     if !isempty(unused)
-      for a in block.((ir,), preds[b.id])
-        for br in branches(a, b), i in unused
-          arguments(br)[i] isa Variable &&
-            (usages[arguments(br)[i]] -= 1)
-        end
-        a in worklist || push!(worklist, a)
+      brs = branchesto(b, preds[b.id]) # `rename!` may have replaced them
+      for br in brs, i in unused
+        arguments(br)[i] isa Variable && (usages[arguments(br)[i]] -= 1)
       end
-      deletearg!(b, unused)
+      foreach(a -> queue!(block(ir, a)), preds[b.id])
+      deletearg!(b, unused, brs)
     end
   end
   return ir
