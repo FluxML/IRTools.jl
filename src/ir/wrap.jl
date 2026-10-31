@@ -4,7 +4,7 @@ using MacroTools: isexpr, prewalk
 
 using ..Inner, ..IRTools
 import ..Inner: IR, Variable, Statement, Branch, BasicBlock, Meta, block!,
-  unreachable, varmap, argument!, branch!, return!, LineInfoNode
+  unreachable, varmap, argument!, branch!, return!, LineInfoNode, predecessorids
 import Core: CodeInfo, GotoNode, SSAValue
 import Core.Compiler: IRCode, CFG, GotoIfNot, ReturnNode, StmtRange
 
@@ -60,7 +60,7 @@ function IRCode(ir::IR)
   end
   ranges = StmtRange.([1, index[1:end-1]...], index.-1)
   succs = map.(x -> x.id, IRTools.successors.(IRTools.blocks(ir)))
-  preds = map.(x -> x.id, IRTools.predecessors.(IRTools.blocks(ir)))
+  preds = predecessorids(ir)
   bs = Core.Compiler.BasicBlock.(ranges, preds, succs)
   cfg = CFG(bs, index)
 
@@ -172,7 +172,7 @@ function IR(ci::CodeInfo, nargs::Integer; meta = nothing)
     _rename[Core.Argument(i)] = arg
   end
   for i = 1:length(ci.code)
-    i in bs && block!(ir)
+    insorted(i, bs) && block!(ir)
     ex = ci.code[i]
     if ex isa Core.NewvarNode
       continue
