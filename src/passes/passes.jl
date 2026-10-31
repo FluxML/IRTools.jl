@@ -50,62 +50,109 @@ function usecounts(ir::IR)
   return counts
 end
 
-function dominators(cfg; entry = 1)
+# The immediate dominator of each block, or 0 for `entry` and the blocks it can't reach.
+# Cooper, Harvey & Kennedy, "A Simple, Fast Dominance Algorithm".
+function idoms(cfg; entry = 1)
+  n = length(cfg)
   preds = cfg'
-  blocks = [1:length(cfg.graph);]
-  doms = Dict(b => Set(blocks) for b in blocks)
-  while !isempty(blocks)
-    b = popfirst!(blocks)
-    # We currently special case the first block here,
-    # since Julia sometimes creates blocks with no predecessors,
-    # which otherwise throw off the analysis.
-    ds = isempty(preds[b]) ? Set([b, entry]) :
-      push!(intersect([doms[c] for c in preds[b]]...), b)
-    if ds != doms[b]
-      doms[b] = ds
-      for c in cfg[b]
-        c in blocks || push!(blocks, c)
-      end
+  # Julia sometimes creates blocks with no predecessors, which would otherwise
+  # be unreachable; treat them as successors of `entry`.
+  roots = filter(b -> b != entry && isempty(preds[b]), 1:n)
+  succs = [b == entry ? [cfg[b]; roots] : cfg[b] for b = 1:n]
+  foreach(b -> push!(preds[b], entry), roots)
+  post = Int[]
+  index = zeros(Int, n)
+  visited = falses(n)
+  visited[entry] = true
+  stack = [(entry, 1)]
+  while !isempty(stack)
+    b, i = stack[end]
+    if i <= length(succs[b])
+      stack[end] = (b, i+1)
+      c = succs[b][i]
+      visited[c] || (visited[c] = true; push!(stack, (c, 1)))
+    else
+      pop!(stack)
+      push!(post, b)
+      index[b] = length(post)
     end
+  end
+  ds = zeros(Int, n)
+  ds[entry] = entry
+  function meet(a, b)
+    while a != b
+      while index[a] < index[b]; a = ds[a]; end
+      while index[b] < index[a]; b = ds[b]; end
+    end
+    return a
+  end
+  changed = true
+  while changed
+    changed = false
+    for b in Iterators.reverse(post)
+      b == entry && continue
+      d = 0
+      for p in preds[b]
+        ds[p] == 0 && continue
+        d = d == 0 ? p : meet(p, d)
+      end
+      ds[b] == d || (ds[b] = d; changed = true)
+    end
+  end
+  ds[entry] = 0
+  return ds
+end
+
+# The children of each block in the dominator tree, in increasing order.
+function domchildren(cfg; entry = 1)
+  ds = idoms(cfg, entry = entry)
+  cs = [Int[] for _ = 1:length(cfg)]
+  for b = 1:length(cfg)
+    ds[b] == 0 || push!(cs[ds[b]], b)
+  end
+  return cs
+end
+
+function preorder(cs, entry)
+  order = Int[]
+  stack = [entry]
+  while !isempty(stack)
+    b = pop!(stack)
+    push!(order, b)
+    append!(stack, Iterators.reverse(cs[b]))
+  end
+  return order
+end
+
+function dominators(cfg; entry = 1)
+  cs = domchildren(cfg, entry = entry)
+  doms = Dict(entry => Set([entry]))
+  for b in preorder(cs, entry), c in cs[b]
+    doms[c] = push!(copy(doms[b]), c)
+  end
+  # Blocks that `entry` can't reach are dominated by every block.
+  for b = 1:length(cfg)
+    haskey(doms, b) || (doms[b] = Set(1:length(cfg)))
   end
   return doms
 end
 
 function domtree(cfg::CFG; entry = 1)
-  doms = dominators(cfg, entry = entry)
-  n = length(cfg)
-  # blocks strictly dominated by each block, as `BitSet`s so the unions below stay cheap
-  sub = [BitSet(c for c in 1:n if b != c && b in doms[c]) for b in 1:n]
-  function children(b)
-    under = BitSet()
-    for c in sub[b]
-      union!(under, sub[c])
-    end
-    return [c for c in sub[b] if !(c in under)]
-  end
-  tree(b) = Pair{Int,Any}(b,tree.(children(b)))
+  cs = domchildren(cfg, entry = entry)
+  tree(b) = Pair{Int,Any}(b,tree.(cs[b]))
   tree(entry)
 end
 
 domtree(ir::IR; entry = 1) = domtree(CFG(ir), entry = entry)
 
-function idoms(cfg; entry = 1)
-  ds = zeros(Int, length(cfg))
-  _idoms((a, bs)) = foreach(((b, cs),) -> (ds[b] = a; _idoms(b=>cs)), bs)
-  _idoms(domtree(cfg, entry = entry))
-  return ds
-end
-
 function domorder(ir, start = 1; full = false)
-  tree = domtree(CFG(ir), entry = start)
-  flatten((b,cs)) = vcat(b, flatten.(cs)...)
-  tree = flatten(tree)
+  cs = domchildren(CFG(ir), entry = start)
+  order = preorder(cs, start)
   if full
-    for b = 1:length(ir.blocks)
-      b in tree || push!(tree, b)
-    end
+    seen = BitSet(order)
+    append!(order, filter(b -> !(b in seen), 1:length(ir.blocks)))
   end
-  return tree
+  return order
 end
 
 domorder!(ir::IR, start = 1) = permute!(ir, domorder(ir, start, full = true))
@@ -150,6 +197,7 @@ end
 function expand!(ir::IR)
   worklist = blocks(ir)
   spats = Dict(b => Dict() for b in blocks(ir))
+  preds = predecessorids(ir)
   while !isempty(worklist)
     b = pop!(worklist)
     b.id == 1 && continue
@@ -158,7 +206,7 @@ function expand!(ir::IR)
     for v in setdiff(uses, defs)
       haskey(spats[b], v) && continue
       spats[b][v] = argument!(b, v)
-      for c in predecessors(b)
+      for c in block.((ir,), preds[b.id])
         c in worklist || push!(worklist, c)
       end
     end
@@ -177,13 +225,32 @@ function mayuse(env, @nospecialize(x))
   return x isa IR
 end
 
+# The blocks whose statements or branches may use each variable.
+function userblocks(ir::IR)
+  users = Dict{Variable,BitSet}()
+  for b in blocks(ir), v in usages(b)
+    push!(get!(BitSet, users, v), b.id)
+  end
+  return users
+end
+
 function prune!(ir::IR)
   usages = usecounts(ir)
+  users = userblocks(ir)
+  preds = predecessorids(ir)
   worklist = blocks(ir)
   queue!(b) = (b in worklist || push!(worklist, b))
-  # Called once per block with redundant arguments, so only rebuild what uses `env`.
+  # Called once per block with redundant arguments, so only visit the blocks that may use
+  # `env` (whose uses move to the replacements), and only rebuild what does.
   function rename!(env, ir)
-    for b in blocks(ir)
+    bs = BitSet()
+    for (y, x) in env
+      haskey(users, y) || continue
+      union!(bs, users[y])
+      varmap(v -> (union!(get!(BitSet, users, v), users[y]); v), x)
+    end
+    for id in bs
+      b = block(ir, id)
       bb = BasicBlock(b)
       f(x) = x isa IR ? x : prewalk(x) do y
         y isa Variable && haskey(env, y) || return y
@@ -202,7 +269,7 @@ function prune!(ir::IR)
   while !isempty(worklist)
     b = popfirst!(worklist)
     isempty(arguments(b)) && continue
-    brs = filter(br -> br.block == b.id, [br for a in blocks(ir) for br in branches(a)])
+    brs = [br for a in preds[b.id] for br in branches(block(ir, a)) if br.block == b.id]
     isempty(brs) && continue
     # Redundant due to all inputs being the same
     inputs = [setdiff(in, (a,)) for (a, in) in zip(arguments(b), zip(arguments.(brs)...))]
@@ -215,7 +282,7 @@ function prune!(ir::IR)
     # Redundant due to not being used
     unused = findall(x -> get(usages, x, 0) == 0, arguments(b))
     if !isempty(unused)
-      for a in predecessors(b)
+      for a in block.((ir,), preds[b.id])
         for br in branches(a, b), i in unused
           arguments(br)[i] isa Variable &&
             (usages[arguments(br)[i]] -= 1)
@@ -286,6 +353,7 @@ function ssa!(ir::IR)
   catch_branches = Dict{Int,Vector{CatchBranch}}()
   catches = Set{Int}(st.expr.args[1] for (_, st) in ir if isexpr(st.expr, :enter))
   stacks = handler_stacks(ir, catches)
+  preds = predecessorids(ir)
   handlers = Int[]
   function reaching(b, slot)
     haskey(defs[b.id], slot) && return defs[b.id][slot]
@@ -299,7 +367,7 @@ function ssa!(ir::IR)
       defs[b.id][slot] = x
     end
 
-    for pred in predecessors(b)
+    for pred in block.((ir,), preds[b.id])
       if pred.id < current
         for br in branches(pred, b)
           push!(br.args, reaching(pred, slot))

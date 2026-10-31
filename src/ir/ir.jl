@@ -215,9 +215,9 @@ Insert a new block in `ir`.  If `i` is given, the block is inserted at this posi
 is appended at the end.  Branches in all other blocks are updated to preserve the original
 behaviour.
 """
-function block!(ir::IR, i = length(blocks(ir))+1)
+function block!(ir::IR, i = length(ir.blocks)+1)
   insert!(ir.blocks, i, BasicBlock())
-  if i != length(blocks(ir))
+  if i != length(ir.blocks)
     for b in blocks(ir), bi = 1:length(branches(b))
       br = branches(b)[bi]
       br.block >= i && (branches(b)[bi] = Branch(br, block = br.block+1))
@@ -237,7 +237,7 @@ behaviour.
 """
 function deleteblock!(ir::IR, i::Integer)
   deleteat!(ir.blocks, i)
-  if i != length(blocks(ir))+1
+  if i != length(ir.blocks)+1
     for b in blocks(ir), bi = 1:length(branches(b))
       br = branches(b)[bi]
       br.block >= i && (branches(b)[bi] = Branch(br, block = br.block-1))
@@ -397,7 +397,7 @@ function argument!(b::Block, value = nothing, t = Any;
   insert!(BasicBlock(b).argtypes, at, type)
   if insert
     explicitbranch!(b)
-    for c in blocks(b.ir), br in branches(c)
+    for bb in b.ir.blocks, br in branches(bb)
       br.block == b.id && insert!(arguments(br), at, value)
     end
   end
@@ -416,7 +416,7 @@ branches to this block.
 """
 function emptyargs!(b::Block)
   empty!(arguments(b))
-  for c in blocks(b.ir), br in branches(c)
+  for bb in b.ir.blocks, br in branches(bb)
     br.block == b.id && empty!(arguments(br))
   end
   return
@@ -432,7 +432,7 @@ function deletearg!(b::Block, i::Integer)
   arg = arguments(b)[i]
   deleteat!(arguments(b), i)
   deleteat!(argtypes(b), i)
-  for c in blocks(b.ir), br in branches(c)
+  for bb in b.ir.blocks, br in branches(bb)
     br.block == b.id && deleteat!(arguments(br), i)
   end
   b.ir.defs[arg.id] = (-1, -1)
@@ -533,7 +533,7 @@ Add to the last block of `ir` a new branch to `block`, with arguments `args` and
 and return it.
 """
 function branch!(ir::IR, args...; kw...)
-  branch!(blocks(ir)[end], args...; kw...)
+  branch!(block(ir, length(ir.blocks)), args...; kw...)
   return ir
 end
 
@@ -581,7 +581,7 @@ See: [`predecessors`](@predecessors)
 function successors(b::Block)
   brs = BasicBlock(b).branches
   succs = Int[br.block for br in brs if br.block > 0]
-  all(br -> br.condition != nothing, brs) && b.id < length(blocks(b.ir)) && push!(succs, b.id+1)
+  all(br -> br.condition != nothing, brs) && b.id < length(b.ir.blocks) && push!(succs, b.id+1)
   return [block(b.ir, succ) for succ in succs]
 end
 
@@ -594,6 +594,15 @@ Returns all `Block`s of which `b` is a successor; basically, all x such that
 See: [`successors`](@successors)
 """
 predecessors(b::Block) = [c for c in blocks(b.ir) if b in successors(c)]
+
+# The ids of every block's `predecessors`, in one pass over the IR.
+function predecessorids(ir::IR)
+  preds = [Int[] for _ in ir.blocks]
+  for b in blocks(ir), c in successors(b)
+    push!(preds[c.id], b.id)
+  end
+  return map(unique!, preds)
+end
 
 """
     keys(ir)
@@ -875,7 +884,7 @@ substitute(p::Pipe) = x -> substitute(p, x)
 function Pipe(ir)
   p = Pipe(ir, IR(copy(ir.lines), meta = ir.meta), Dict(), 0, identity, identity)
   for (x, T) in zip(p.from.blocks[1].args, p.from.blocks[1].argtypes)
-    y = argument!(blocks(p.to)[end], nothing, T, insert = false)
+    y = argument!(block(p.to, length(p.to.blocks)), nothing, T, insert = false)
     substitute!(p, x, y)
   end
   return p
@@ -883,7 +892,11 @@ end
 
 function pipestate(ir::IR)
   ks = sort([Variable(i) => v for (i, v) in enumerate(ir.defs) if v[2] > 0], by = x->x[2])
-  [first.(filter(x -> x[2][1] == b, ks)) for b = 1:length(ir.blocks)]
+  state = [Variable[] for _ = 1:length(ir.blocks)]
+  for (v, (b, _)) in ks
+    push!(state[b], v)
+  end
+  return state
 end
 
 branches(f, p::Pipe) = (p.branch = f)
@@ -893,7 +906,7 @@ function iterate(p::Pipe, (ks, b, i) = (pipestate(p.from), 1, 1))
   i == 1 && b == 1 && p.block(b)
   if i == 1 && b != 1
     for (x, T) in zip(p.from.blocks[b].args, p.from.blocks[b].argtypes)
-      y = argument!(blocks(p.to)[end], nothing, T, insert = false)
+      y = argument!(block(p.to, length(p.to.blocks)), nothing, T, insert = false)
       substitute!(p, x, y)
     end
   end
@@ -988,6 +1001,6 @@ function block!(p::Pipe)
 end
 
 function blockargument!(p::Pipe, type)
-  x = argument!(blocks(p.to)[end], nothing, type, insert = false)
+  x = argument!(block(p.to, length(p.to.blocks)), nothing, type, insert = false)
   substitute!(p, var!(p), x)
 end
